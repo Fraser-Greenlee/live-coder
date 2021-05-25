@@ -76,13 +76,37 @@ class ExecutedFunction {
     constructor(method: aFunction, nthCall: number) {
         this.method = method;
         this.nthCall = nthCall;
-        this.callId = `${this.method.file.path}:${this.method.name}:${this.nth_call}`;
+        this.callId = `${this.method.file.path}:${this.method.name}:${this.nthCall}`;
         this.lines = new Array();
         this.groupsStack = new Array();
     }
 
     private normLineNum(lineNum: number) {
         return lineNum - this.method.lineNum;
+    }
+
+    public handleGroup(lineNum: number, tab: number, isGroupLine: boolean) {
+        lineNum = this.normLineNum(lineNum);
+
+        // exit groups
+        while (this.groupsStack && this.groupsStack[-1] && tab < this.groupsStack[-1].tab) {
+            this.groupsStack.pop();
+        }
+
+        if (this.groupsStack && this.groupsStack[-1] && tab === this.groupsStack[-1].tab && line_num != this.groupsStack[-1].line_num) {
+            this.groupsStack.pop();
+        }
+
+        // add a group
+        if (isGroupLine) {
+            if (this.groupsStack && this.groupsStack[-1] && lineNum === this.groupsStack[-1].line_num) {
+                this.groupsStack[-1].start_new_group();
+            } else {
+                const group = new LineGroup(lineNum, tab);
+                this.groupsStack.push(group);
+                this.lines.push(group);
+            }
+        }
     }
 
     private getLastLine() {
@@ -156,17 +180,37 @@ class LineGroup {
         Holds lines for one run of a loop.
     */
     public lineNum: number;
-    public tab: string;
-    public groups: (LineGroup|Line)[][];
+    public tab: number;
+    public groupsStack: (LineGroup|Line)[][];
 
-    constructor(lineNum: number, tab: string) {
+    constructor(lineNum: number, tab: number) {
         this.lineNum = lineNum;
         this.tab = tab;
-        this.groups = new Array();
-        this.groups.push(new Array());
+        this.groupsStack = new Array();
+        this.groupsStack.push(new Array());
     }
 
-    
+    public addLine(line: Line) {
+        this.groupsStack[-1].push(line);
+    }
+
+    public startNewGroup() {
+        this.groupsStack.push([]);
+    }
+
+    public getLastLine() {
+        if (this.groupsStack && this.groupsStack[-1]) {
+            return this.groupsStack[-1][-1];
+        }
+    }
+
+    public setLastLine(line: Line) {
+        if (this.groupsStack && this.groupsStack[-1]) {
+            this.groupsStack[-1][-1] = line;
+        } else {
+            throw new Error('No line to set.')
+        }
+    }
 }
 
 

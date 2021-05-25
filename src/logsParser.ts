@@ -95,7 +95,9 @@ export function parseExecution(logs: string[]) {
     let methodExecs: ExecutedFunction[] = new Array();
 
     let lines = logs.map( (l) => l.trim() );
+
     lines.forEach( (line, i) => {
+
         if (!isSnoopLine(line)) {
             return;
         }
@@ -127,7 +129,7 @@ export function parseExecution(logs: string[]) {
 
         } else if (isCodeLine(code)) {
             const lineNum = getLineNum(code);
-            const tab = getTab(code);
+            const tab: number = getTab(code);
             methodExecs[-1].handleGroup(lineNum, tab, isGroupLine(line));
 
         } else if (isReturnLine(code)) {
@@ -136,9 +138,7 @@ export function parseExecution(logs: string[]) {
             if (methodExecs.length >= 2) {
                 methodExecs[-1].addLine(lineNum, value, {callId: methodExecs[-2].call_id, isReturn: true});
             }
+            methodExecs.pop();
         }
-
-
-
     });
 }
