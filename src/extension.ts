@@ -3,6 +3,18 @@
 import * as vscode from 'vscode';
 import { LiveValuesPanel } from './LiveValuesPanel';
 
+function _newFileCouldHaveLiveValues() {
+	return LiveValuesPanel.currentPanel 
+		&& vscode.window.activeTextEditor
+		&& isPython(vscode.window.activeTextEditor)
+		&& LiveValuesPanel.currentPanel.isNewActiveEditor(vscode.window.activeTextEditor);
+}
+
+function isPython(activeTextEditor: vscode.TextEditor) {
+	const fileName: string = activeTextEditor.document.fileName;
+	const potentialPy: string = fileName.substr(fileName.length - 3);
+	return potentialPy === '.py';
+}
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -31,10 +43,28 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand("live-coder.kill", async () => {
-		  LiveValuesPanel.kill();
-		})
+    context.subscriptions.push(
+        vscode.window.onDidChangeTextEditorVisibleRanges(event => {
+			if (LiveValuesPanel.currentPanel && Date.now() - LiveValuesPanel.currentPanel.webviewLastScrolled > 50) {
+				LiveValuesPanel.currentPanel.scrollPanel(event.textEditor);
+			}
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(() => {
+            if (_newFileCouldHaveLiveValues()) {
+                LiveValuesPanel.currentPanel!.refreshWebview();
+            }
+        })
+	);
+
+    context.subscriptions.push(
+        vscode.workspace.onDidSaveTextDocument(() => {
+            if (LiveValuesPanel.currentPanel && vscode.window.activeTextEditor) {
+				LiveValuesPanel.currentPanel.testsTracker.runTest();
+            }
+        })
 	);
 }
 

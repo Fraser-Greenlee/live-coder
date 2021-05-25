@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
-import { ChildProcess, spawn } from 'child_process';
 import { getNonce } from "./getNonce";
-import { requestLiveValues } from "./test/getLiveValues";
+import { makeLiveValues } from "./getLiveValues";
+import { LogsTracker as logsTracker } from "./logsTracker";
+import { TestsTracker } from "./testsTracker";
+import { TestSelect } from "./testSelect";
 
 export class LiveValuesPanel {
 	/**
@@ -17,19 +19,17 @@ export class LiveValuesPanel {
 
 	private _currentActiveTextEditor: vscode.TextEditor;
 
-	private _projectRoot: string = '';
 	public testsRelativePath: string = '';
 	public testPattern: string = '';
 
-	private _testClasses: any;
-	private _selectedTestClassIndex: number = -1;
-	private _selectedtestMethodIndex: number = -1;
+	public logsTracker: logsTracker;
+	public testsTracker: TestsTracker;
+	public testSelect: TestSelect;
 
 	private _liveValues: any = {};
 	private _callIdToFunction: any = {};
 	private _selectedFunctionCallIds: any = {};
 	private _testOutput: string[] = new Array();
-	private _currentTestId: string = "";
 	private _testOutputIsClosed: boolean = true;
 	public webviewLastScrolled: number = Date.now();
 
@@ -40,7 +40,6 @@ export class LiveValuesPanel {
 		// If we already have a panel, show it.
 		if (LiveValuesPanel.currentPanel) {
 			LiveValuesPanel.currentPanel._panel.reveal(column);
-			LiveValuesPanel.currentPanel._update();
 			return;
 		}
 
@@ -62,6 +61,24 @@ export class LiveValuesPanel {
 		LiveValuesPanel.currentPanel = new LiveValuesPanel(panel, extensionUri);
 	}
 
+	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+		this._panel = panel;
+		this._extensionUri = extensionUri;
+		this._currentActiveTextEditor = vscode.window.activeTextEditor!;
+
+		this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+
+		this.logsTracker = new logsTracker();
+		this.testsTracker = new TestsTracker();
+		this.testSelect = new TestSelect(this.testsTracker, this.logsTracker);
+		this.testsTracker.refreshTestMethods().then((worked) => {
+			if (worked) {
+                LiveValuesPanel.currentPanel!.refreshWebview();
+			}
+		});
+        this._addWebviewMessageHandlers();
+	}
+
 	public static kill() {
 		LiveValuesPanel.currentPanel?.dispose();
 		LiveValuesPanel.currentPanel = undefined;
@@ -71,34 +88,12 @@ export class LiveValuesPanel {
 		LiveValuesPanel.currentPanel = new LiveValuesPanel(panel, extensionUri);
 	}
 
-	private static _isPython(activeTextEditor: vscode.TextEditor) {
-		const fileName: string = activeTextEditor.document.fileName;
-		const potentialPy: string = fileName.substr(fileName.length - 3);
-		return potentialPy === '.py';
-	}
-
-	private _isNewActiveEditor(activeEditor: vscode.TextEditor) {
+	public isNewActiveEditor(activeEditor: vscode.TextEditor) {
 		return activeEditor.document.fileName !== this._currentActiveTextEditor.document.fileName;
 	}
 
-	private _getTestSettings() {
-		const pyTestArgs = vscode.workspace.getConfiguration('python.testing.unittestArgs');
-		let i: number = 0;
-		while ( pyTestArgs.has(String(i)) ) {
-			let arg: string|undefined = pyTestArgs.get(String(i));
-			if (arg && arg[0] !== '-') {
-				if (arg.substr(arg.length - 3, 3) === '.py') {
-					this.testPattern = arg;
-				} else {
-					this.testsRelativePath = arg;
-				}
-			}
-			i++;
-		}
-	}
-
 	public static badSettingsError() {
-		if (vscode.workspace.getConfiguration('python').get('pythonPath')) {
+		if (!vscode.workspace.getConfiguration('python').get('pythonPath')) {
 			vscode.window.showErrorMessage('Please select a Python interpreter. Do this with the "Python: Select Interpreter" command.');
 			return true;
 		}
@@ -122,46 +117,17 @@ export class LiveValuesPanel {
 		);
 	}
 
-	private _runTestMethod(classIndex: number, methodIndex: number, method: string) {
-		this._currentTestId = method;
-		let response = this._getLiveValues();
-		response.then((liveValuesAndTestOutput) => {
-			if (liveValuesAndTestOutput === undefined) {
-				this._panel.webview.html = this._errorHTML(
-					'<b>Error</b> Got no response from the server, is it running?'
-				);
-			} else {
-				this._selectedTestClassIndex = classIndex;
-				this._selectedtestMethodIndex = methodIndex;
-				this._panel.webview.html = this._liveValuesHTML(
-					liveValuesAndTestOutput[0],
-					liveValuesAndTestOutput[1]
-				);
-			}
-		});
-	}
-
-	private _selectNoTestClass() {
-		this._selectedTestClassIndex = -1;
-		this._selectedtestMethodIndex = -1;
-		this._currentTestId = "";
-		this._panel.webview.html = this._errorHTML(
-			'<b>No Test Class or Test Method Selected</b> Use the dropdown above to see your code run!'
-		);
-	}
-
-	private _handleWebviewMessages() {
+	private _addWebviewMessageHandlers() {
 		this._panel.webview.onDidReceiveMessage(
 			message => {
 				switch (message.command) {
 					case 'revealLine':
                     	this._scrollToLine(message.line);
-						return;
 					case 'clearLiveValues':
-						this._selectNoTestClass();
-						return;
+						this.testsTracker.deselect(); // currentTestMethodIndex = -1
+						this.refreshWebview();
 					case 'runTestMethod':
-						return;
+						this.testsTracker.runTest(message.methodIndex, message.method);
 					case 'toggleTestOutput':
 						this._testOutputIsClosed = this._testOutputIsClosed === false;
 					case 'openFunctionCall':
@@ -174,25 +140,6 @@ export class LiveValuesPanel {
 			this._disposables
 		);
 	}
-
-	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-		this._panel = panel;
-		this._extensionUri = extensionUri;
-		this._currentActiveTextEditor = vscode.window.activeTextEditor!;
-
-        // Set the webview's initial html content
-        this._update();
-
-		// Listen for when _panel is disposed
-		// This happens when the user closes the panel or when the panel is closed programatically
-		this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-
-        this._handleWebviewMessages();
-	}
-
-    private async _update() {
-        this._panel.webview.html = this._getHtmlForWebview(this._panel.webview, "<h1>Test</h1>");
-    }
 
 	public scrollWebview(yPosition: number) {
 		this._panel.webview.postMessage({ command: 'editorScroll', scroll: yPosition });
@@ -210,37 +157,8 @@ export class LiveValuesPanel {
 			}
 		}
 	}
-	
-	private _updateFileAttributes() {
-		if (vscode.window.activeTextEditor) {
-			this._currentActiveTextEditor = vscode.window.activeTextEditor;
-		}
-		this._panel.title = `Live Coder: ` + this._currentFileNameShort();
-	}
 
-	private _updatePanelDisplay(reloadValues: boolean) {
-		let response;
-		if (reloadValues) {
-			response = this._getLiveValues();
-		} else {
-			response = new Promise((resolve, reject) => {
-				resolve(this._getLiveValuesForCurrentEditor());
-			});
-		}
-		response.then((liveValuesAndTestOutput: any) => {
-			if (liveValuesAndTestOutput === undefined) {
-				this._panel.webview.html = this._errorHTML('<b>Error</b> No live values found.');
-			} else {
-				this._panel.webview.html = this._liveValuesHTML(
-					liveValuesAndTestOutput[0],
-					liveValuesAndTestOutput[1]
-				);
-			}
-			this.scrollPanel(this._currentActiveTextEditor);
-		});
-	}
-
-    private scrollPanel(textEditor: vscode.TextEditor) {
+    public scrollPanel(textEditor: vscode.TextEditor) {
         const line = this.getScrollPosition(textEditor);
         if (typeof line === 'number' && LiveValuesPanel.currentPanel) {
             LiveValuesPanel.currentPanel.scrollWebview(line);
@@ -259,45 +177,36 @@ export class LiveValuesPanel {
         return (lineNumber + progress) * 18;
     }
 
-	public updateWebview(reloadValues: boolean) {
-		this._updateFileAttributes();
-		this._updatePanelDisplay(reloadValues);
+	public refreshWebview() {
+        if (vscode.window.activeTextEditor) {
+			this._currentActiveTextEditor = vscode.window.activeTextEditor;
+			const fullPath: string = this._currentActiveTextEditor.document.fileName;
+            this._panel.title = `Live Coder: ` + fullPath.split('/').pop();
+		}
+
+		if (this.logsTracker.noneSelected()) {
+			this._panel.webview.html = this._liveValuesErrorMessage('No active test or log file.', 'Select a test method or log file from the dropdown above.');
+		}
+		if (this._currentActiveTextEditor === undefined) {
+			this._panel.webview.html = this._liveValuesErrorMessage('No active editor.', 'Open a Python file to see it run.');
+		}
+
+		this._panel.webview.html = this._liveValuesHTML(this.logsTracker.render());
+		this.scrollPanel(this._currentActiveTextEditor);
 	}
 
-	private _liveValuesHTML(liveValues: string, testOutput: string) {
-
-		const testClassOptions: string = this._getTestClassOptions();
-		const testMethodOptions: string = this._getTestMethodOptions();
-
+	private _liveValuesHTML(render: string) {
 		return this._getHtmlForWebview(
             this._panel.webview,
             `<div id="header">
-				<select class="picker" id="testClassPicker">
-					<option value="">No Test Class</option>
-					<option value="─────────" disabled="">─────────</option>
-					${testClassOptions}
-				</select>
-				<select class="picker" id="testMethodPicker">
-					${testMethodOptions}
-				</select>
-				<a id="issueLink" href="https://gitlab.com/Fraser-Greenlee/live-coder-vscode-extension/issues/new">report an issue</a>
+				${this.testSelect.html()}
+				<a id="issueLink" href="https://github.com/Fraser-Greenlee/live-coder/issues">report an issue</a>
 			</div>
 			<div id="scrollableLiveValues">
-				${liveValues}
+				${render}
 				<div id="tooltipBackground"></div>
-			</div>
-			${testOutput}`
-		);
-	}
-    private _errorHTML(message: string) {
-		return this._getHtmlForWebview(
-            this._panel.webview,
-            `<div id="scrollableLiveValues">
-				<div class="centre"><span>
-					${message}
-				</span></div>
 			</div>`
-        );
+		);
 	}
 
 	private _getHtmlForWebview(webview: vscode.Webview, body: string) {
@@ -313,6 +222,12 @@ export class LiveValuesPanel {
         );
         const stylesMainUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, "webview_src", "main.css")
+        );
+        const stylesHighlightUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, "webview_src", "highlight.css")
+        );
+        const stylesMarkdownUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, "webview_src", "markdown.css")
         );
 
         // Use a nonce to only allow specific scripts to be run
@@ -331,6 +246,8 @@ export class LiveValuesPanel {
                 <link href="${stylesVscodeUri}" rel="stylesheet">
                 <link href="${stylesResetUri}" rel="stylesheet">
                 <link href="${stylesMainUri}" rel="stylesheet">
+                <link href="${stylesHighlightUri}" rel="stylesheet">
+                <link href="${stylesMarkdownUri}" rel="stylesheet">
             </head>
             <body>
                 ${body}
@@ -338,100 +255,6 @@ export class LiveValuesPanel {
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;
-	}
-
-	private _testClassNameFromId(testClassId: string) {
-		const idParts: string[] = testClassId.split('.');
-		return idParts[idParts.length - 1];
-	}
-
-	private _testFileNameFromId(testClassId: string) {
-		const idParts: string[] = testClassId.split('.');
-		return idParts.slice(1, idParts.length - 1).join('/') + '.py';
-	}
-
-	private _testClassNames() {
-		let names: string[] = new Array(this._testClasses.length);
-		for (let i = 0; i < this._testClasses.length; i++) {
-			const testClass = this._testClasses[i];
-			names[i] = this._testClassNameFromId(testClass.id);
-		}
-		return this._handleDuplicateClassNames(names);
-	}
-
-	private _appendFilePathToDuplicateTestClassNames(names: string[], duplicateIndices: number[]) {
-		for (let i = 0; i < duplicateIndices.length; i++) {
-			const classIndex: number = duplicateIndices[i];
-			const testClass = this._testClasses[i];
-			names[classIndex] = `${this._testClassNameFromId(testClass.id)} ---- ${this._testFileNameFromId(testClass.id)}`;
-		}
-		return names;
-	}
-
-    private getDuplicates(array: string[]) {
-        var duplicates = new Map<string, number[]>();
-        for (var i = 0; i < array.length; i++) {
-            if (duplicates.has(array[i])) {
-                duplicates.get(array[i])!.push(i);
-            } else if (array.lastIndexOf(array[i]) !== i) {
-                duplicates.set(array[i], [i]);
-            }
-        }
-        return duplicates;
-    }
-
-	private _handleDuplicateClassNames(names: string[]) {
-		let duplicateNameToIndices: Map<string, number[]> = this.getDuplicates(names);
-		if (duplicateNameToIndices.size > 0) {
-			const duplicateNames: string[] = Array.from(duplicateNameToIndices.keys());
-			for (let i = 0; i < duplicateNames.length; i++) {
-				const duplicateName: string = duplicateNames[i];
-				const duplicateIndices: number[] = duplicateNameToIndices.get(duplicateName)!;
-				names = this._appendFilePathToDuplicateTestClassNames(names, duplicateIndices);
-			}
-		}
-		return names;
-	}
-
-	private _selectedProperty(selectedIndex: number, i: number) {
-		if (i === selectedIndex) {
-			return 'selected';
-		} else {
-			return '';
-		}
-	}
-
-	private _testClassOption(classNames: string[], classIndex: number) {
-		const name = classNames[classIndex];
-		const testClass = this._testClasses[classIndex];
-		const selected = this._selectedProperty(this._selectedTestClassIndex, classIndex);
-		return `<option value="${testClass.id}" data-method_names="${testClass.method_names}" data-method_ids="${testClass.method_ids}" ${selected}>${name}</option>`;
-	}
-
-	private _getTestClassOptions() {
-		let classNames: string[] = this._testClassNames();
-		let options: string[] = new Array(this._testClasses.length);
-		for (let i = 0; i < classNames.length; i++) {
-			options[i] = this._testClassOption(classNames, i);
-		}
-		return options.join('');
-	}
-
-	private _getTestMethodOptions() {
-		if (this._selectedTestClassIndex === -1) {
-			return '<option value="">No Test Method</option>';
-		} else {
-			return this._testMethodOptionsForClass(this._testClasses[this._selectedTestClassIndex]);
-		}
-	}
-
-	private _testMethodOptionsForClass(testClass: any) {
-		let options: string[] = new Array(testClass.method_names.length);
-		for (let i = 0; i < testClass.method_names.length; i++) {
-			const selected = this._selectedProperty(this._selectedtestMethodIndex, i);
-			options[i] = `<option value="${testClass.method_ids[i]}" ${selected}>${testClass.method_names[i]}</option>`;
-		}
-		return options.join('');
 	}
 
 	private _callIdsForFile(filePath: string) {
@@ -481,29 +304,31 @@ export class LiveValuesPanel {
 	}
 
 	private _liveValuesErrorMessage(title: string, body: string) {
-		return new Array(
-			`<div class="centre">
+		return `
+			<div class="centre">
 				<div class="widthLimiter">
 					<span><b>${title}</b> ${body}</span>
 					<div id="postHolder">
 						<div class="post">
-							<h2>Live Coder Basics</h2>
-							<ul>
-								<li><b>Run Tests</b>: First setup Python tests on VSCode <a href="https://code.visualstudio.com/docs/python/testing">instructions.</a></li>
-								<li><b>goto links</b>: Click <span class="function_call_link sample">function_name</span> links goto where functions were called from/to.</li>
-								<li><b>Click to expand</b>: Click on values to see expanded versions.</li>
-							</ul>
+							<h2>Welcome!</h2>
+                            <p>Get started by installing LiveCoder with:</p>
+                            <pre class="code-active-line"><code class="language-bash">pip install live_coder</code></pre>
+                            <p>Next add snoop to track values.</p>
+                            <pre class="code-active-line"><code class="code-line language-python code-line language-python"><div><span class="hljs-keyword">from</span> live_coder <span class="hljs-keyword">import</span> snoop
+
+<span class="hljs-meta">@snoop</span>
+<span class="hljs-function"><span class="hljs-keyword">def</span> <span class="hljs-title">my_first_method</span>():</span>
+    <span class="hljs-keyword">pass</span></div></code></pre>
+                            <p>Now run your code to update LiveCoder.</p>
 						</div>
 					</div>
 				</div>
-			</div>`,
-			''
-		);
+			</div>`
 	}
 
 	private _noLiveValuesResponse() {
 		if (this._currentTestId === "") {
-			return this._liveValuesErrorMessage('No active test.', 'Select a test class and method from the dropdown above.');
+			return this._liveValuesErrorMessage('No active test.', 'Select a test method from the dropdown above.');
 		}
 		if (this._currentActiveTextEditor === undefined) {
 			return this._liveValuesErrorMessage('No active editor.', 'Open a Python file to see it run.');
@@ -525,21 +350,6 @@ export class LiveValuesPanel {
 		this._callIdToFunction = response.call_id_to_function;
 		this._selectedFunctionCallIds = this._getSelectedFunctionCallIds();
 		this._testOutput = response.test_output.split('\n');
-		const testClasses = response.test_classes;
-		this._testClasses = testClasses;
-	}
-
-	private async _getLiveValues() {
-		const failResponse = this._noLiveValuesResponse();
-		if (failResponse) {
-			return failResponse;
-		}
-		const response = await requestLiveValues(this._currentTestId);
-		if (response['type'] === 'error') {
-			this._liveValuesResponseError(response);
-		}
-		this._assignLiveValuesAttributesFromResponse(response);
-		return this._getLiveValuesForCurrentEditor();
 	}
 
 	private _testStatus() {
@@ -580,18 +390,6 @@ export class LiveValuesPanel {
 				${testOutputHTML}
 			</div>
 		</div></div>`;
-	}
-
-	private _noValuesForFile() {
-		return new Array(
-			`<div class="centre">
-				<span>
-					<b>File not ran by the selected test.</b>
-					<span class="function_call_link clearLink" data-reference-id="start" data-reference-name="${this._callIdToFunction.start[1]}">open test start</span>
-				</span>
-			</div>`,
-			this._getTestOutput()
-		);
 	}
 
 	private _hideFunctionCall(selectedCallId: string, callId: string) {
@@ -650,23 +448,6 @@ export class LiveValuesPanel {
 		return hmlFunctions.join('');
 	}
 
-    private _getLiveValuesForCurrentEditor() {
-		const functionsToCalls = this._liveValues[this._currentFileName()];
-		const selectedFunctionCallIds = this._selectedFunctionCallIds[this._currentFileName()];
-		if (functionsToCalls === undefined) {
-			return this._noValuesForFile();
-		}
-	
-		let functionsHTML: string = this._htmlForFunctions(functionsToCalls, selectedFunctionCallIds);
-		const testOutputHTML: string = this._getTestOutput();
-
-		let lineCount = this._currentActiveTextEditor.document.lineCount + 100;
-        return new Array(
-			`<div class="padding" style="padding-bottom: ${lineCount * 18}px" onclick="console.log('clicked padding')"></div>${functionsHTML}`,
-			testOutputHTML
-		);
-    }
-
     private _linesAsHTML(linesContent: string[]) {
         var htmlLines = new Array(linesContent.length);
         for (let i = 0; i < linesContent.length; i++) {
@@ -675,14 +456,9 @@ export class LiveValuesPanel {
         return htmlLines.join('');
 	}
 
-	private _currentFileNameShort() {
-		const fullPath: string = this._currentActiveTextEditor.document.fileName;
-		return fullPath.split('/').pop();
-	}
-	
 	private _currentFileName() {
-		const fullPath: string = this._currentActiveTextEditor.document.fileName;
-		const projectRootTerms = vscode.workspace.workspaceFolders![0].name;
+		const fullPath: string = this._currentActiveTextEditor.document.uri.path;
+		const projectRootTerms = vscode.workspace.workspaceFolders![0].uri.path;
 		const pathTerms = fullPath.split('/');
 		const localPathTerms = pathTerms.slice(projectRootTerms.length);
 		return localPathTerms.join('/');

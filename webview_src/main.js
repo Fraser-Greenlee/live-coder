@@ -12,7 +12,7 @@ var lastScrolledEditor = 0;
 
     handleMessagesFromExtension();
     handleScrolling(vscode);
-    handleTestPickers(vscode);
+    handleTestPicker(vscode);
     handleTestPanelResizer(vscode);
     handleToolTip();
     handleFunctionCallLinks(vscode);
@@ -41,21 +41,14 @@ function _throttle(func, wait) {
     };
 }
 
-function handleTestPickers(vscode) {
-    document.getElementById('testClassPicker').addEventListener(
-        'change',
-        function() {
-            pickedTestClass(vscode);
-        },
-        false
-     );
-    document.getElementById('testMethodPicker').addEventListener(
+function handleTestPicker(vscode) {
+    document.getElementById('testPicker').addEventListener(
         'change',
         function() {
             pickedTestMethod(vscode);
         },
         false
-    );
+     );
 }
 
 function handleTestPanelResizer(vscode) {
@@ -293,7 +286,7 @@ function hideToolTip() {
 ///////////// TestPickers
 
 function pickedTestMethod(vscode) {
-    if (_pickedNull('testMethodPicker')) {
+    if (_pickedNull('testPicker')) {
         vscode.postMessage({command: 'clearLiveValues'});
     } else {
         _messageRunTestMethod(vscode);
@@ -305,33 +298,12 @@ function _pickedNull(selectId) {
 }
 
 function _messageRunTestMethod(vscode) {
-    const methodPicker = document.getElementById("testMethodPicker");
+    const methodPicker = document.getElementById("testPicker");
     vscode.postMessage({
         command: 'runTestMethod',
         method: methodPicker.value,
-        classIndex: _pickedClassIndex(),
         methodIndex: methodPicker.selectedIndex
     });
-}
-
-function _pickedClassIndex() {
-    const selectedIndex = document.getElementById("testClassPicker").selectedIndex;
-    const nullOptions = 2;
-    return selectedIndex - nullOptions;
-}
-
-function pickedTestClass(vscode) {
-    if (_pickedNull('testClassPicker')) {
-        _defaultTestMethods();
-        pickedTestMethod(vscode);
-    } else {
-        var selectedOption = _selectedOption('testClassPicker');
-        newTestMethods(
-            _listData(selectedOption, 'method_names'),
-            _listData(selectedOption, 'method_ids')
-        );
-        pickedTestMethod(vscode);
-    }
 }
 
 function _selectedOption(selectId) {
@@ -344,14 +316,14 @@ function _listData(element, name) {
 }
 
 function _defaultTestMethods() {
-    var methodPicker = document.getElementById("testMethodPicker");
+    var methodPicker = document.getElementById("testPicker");
     removeOptions(methodPicker);
     methodPicker.appendChild(newOption("", "No Test Methods"));
     methodPicker.value = "";
 }
 
 function newTestMethods(methodNames, methodIds) {
-    var methodPicker = document.getElementById("testMethodPicker");
+    var methodPicker = document.getElementById("testPicker");
     removeOptions(methodPicker);
     for (i = 0; i < methodNames.length; i++) {
         methodPicker.appendChild(

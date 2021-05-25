@@ -312,6 +312,10 @@ div#tooltip {
     z-index: 2;
 }
 
+p {
+    margin: 5px;
+}
+
 #tooltip span.p {
     display: block;
 }

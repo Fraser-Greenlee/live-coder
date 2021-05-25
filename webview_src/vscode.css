@@ -42,6 +42,7 @@ a:active {
 code {
   font-size: var(--vscode-editor-font-size);
   font-family: var(--vscode-editor-font-family);
+  display: block;
 }
 
 button {
