@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import { getNonce } from "./getNonce";
-import { makeLiveValues } from "./getLiveValues";
 import { LogsTracker as logsTracker } from "./logsTracker";
 import { TestsTracker } from "./testsTracker";
 import { TestSelect } from "./testSelect";
@@ -25,10 +24,10 @@ export class LiveValuesPanel {
 	public logsTracker: logsTracker;
 	public testsTracker: TestsTracker;
 	public testSelect: TestSelect;
+	public selectedFunctionCallIds: any = {};
 
 	private _liveValues: any = {};
 	private _callIdToFunction: any = {};
-	private _selectedFunctionCallIds: any = {};
 	private _testOutput: string[] = new Array();
 	private _testOutputIsClosed: boolean = true;
 	public webviewLastScrolled: number = Date.now();
@@ -124,10 +123,10 @@ export class LiveValuesPanel {
 					case 'revealLine':
                     	this._scrollToLine(message.line);
 					case 'clearLiveValues':
-						this.testsTracker.deselect(); // currentTestMethodIndex = -1
+						this.testsTracker.deselect();
 						this.refreshWebview();
 					case 'runTestMethod':
-						this.testsTracker.runTest(message.methodIndex, message.method);
+						this.testsTracker.runTest({methodIndex: message.methodIndex, method: message.method});
 					case 'toggleTestOutput':
 						this._testOutputIsClosed = this._testOutputIsClosed === false;
 					case 'openFunctionCall':
@@ -191,7 +190,11 @@ export class LiveValuesPanel {
 			this._panel.webview.html = this._liveValuesErrorMessage('No active editor.', 'Open a Python file to see it run.');
 		}
 
-		this._panel.webview.html = this._liveValuesHTML(this.logsTracker.render());
+		this._panel.webview.html = this._liveValuesHTML(
+			this.logsTracker.getRender(
+				this._currentActiveTextEditor.document.fileName
+			)
+		);
 		this.scrollPanel(this._currentActiveTextEditor);
 	}
 
@@ -258,7 +261,7 @@ export class LiveValuesPanel {
 	}
 
 	private _callIdsForFile(filePath: string) {
-		const selectedCallIds = this._selectedFunctionCallIds[filePath];
+		const selectedCallIds = this.selectedFunctionCallIds[filePath];
 		if (selectedCallIds === undefined) {
 			return {};
 		}
@@ -298,9 +301,9 @@ export class LiveValuesPanel {
 
 	private _getSelectedFunctionCallIds() {
 		Object.keys(this._liveValues).forEach(filePath => {
-			this._selectedFunctionCallIds[filePath] = this._selectedCallIdsForFile(filePath);
+			this.selectedFunctionCallIds[filePath] = this._selectedCallIdsForFile(filePath);
 		});
-		return this._selectedFunctionCallIds;
+		return this.selectedFunctionCallIds;
 	}
 
 	private _liveValuesErrorMessage(title: string, body: string) {
@@ -323,7 +326,7 @@ export class LiveValuesPanel {
 						</div>
 					</div>
 				</div>
-			</div>`
+			</div>`;
 	}
 
 	private _noLiveValuesResponse() {
@@ -348,48 +351,8 @@ export class LiveValuesPanel {
 	private _assignLiveValuesAttributesFromResponse(response: any) {
 		this._liveValues = response.live_values;
 		this._callIdToFunction = response.call_id_to_function;
-		this._selectedFunctionCallIds = this._getSelectedFunctionCallIds();
+		this.selectedFunctionCallIds = this._getSelectedFunctionCallIds();
 		this._testOutput = response.test_output.split('\n');
-	}
-
-	private _testStatus() {
-		if (this._testOutput[0] === "F") {
-			return 'Failed';
-		} else if (this._testOutput[0] === "E") {
-			return 'Error';
-		}
-		return 'Passed';
-	}
-
-	private _testResizeClass() {
-		if (this._testOutputIsClosed) {
-			return 'closed';
-		}
-		return 'open';
-	}
-
-	private _testOutputArrow() {
-		if (this._testOutputIsClosed) {
-			return '&#8594';
-		}
-		return '&#8600';
-	}
-
-	private _getTestOutput() {
-		const testOutputHTML: string = this._linesAsHTML(this._testOutput);
-		const testStatus = this._testStatus();
-		const resizeClass = this._testResizeClass();
-		const arrowString = this._testOutputArrow();
-
-		return `<div id="testPanel"><div id="resize" class="${resizeClass}">
-			<div id="testPanelResizer"></div>
-			<div id="testHeader">
-				<span id="testOuptutArrow">${arrowString}</span><b>Test Output:</b><span id="testStatus" class="test${testStatus}">${testStatus}</span>
-			</div>
-			<div id="testBody">
-				${testOutputHTML}
-			</div>
-		</div></div>`;
 	}
 
 	private _hideFunctionCall(selectedCallId: string, callId: string) {
@@ -435,7 +398,7 @@ export class LiveValuesPanel {
 		});
 		const callIds: string = this._functionCallIds(functionInfo.calls);
 		const buttons: string = this._functionButtons(functionName, functionInfo.calls);
-		return `<div class="function" id="${callIds}" style="top: ${(functionInfo.starting_line_number - 1) * 18}px">${buttons}${functionCallsHTML.join('')}</div>`;
+		return `<div class="function" id="${callIds}" style="top: ${(functionInfo.startingLineNumber - 1) * 18}px">${buttons}${functionCallsHTML.join('')}</div>`;
 	}
 
 	private _htmlForFunctions(functionsToCalls: any, selectedFunctionCallIds: any) {
@@ -446,14 +409,6 @@ export class LiveValuesPanel {
 			);
 		});
 		return hmlFunctions.join('');
-	}
-
-    private _linesAsHTML(linesContent: string[]) {
-        var htmlLines = new Array(linesContent.length);
-        for (let i = 0; i < linesContent.length; i++) {
-            htmlLines[i] = `<div style="height:18px;" class="view-line"><span>${linesContent[i]}</span></div>`;
-        }
-        return htmlLines.join('');
 	}
 
 	private _currentFileName() {
@@ -474,7 +429,7 @@ export class LiveValuesPanel {
 	}
 
 	private _updateFunctionCallSelection(callId: string, name: string) {
-		this._selectedFunctionCallIds[this._currentFileName()][name] = callId;
+		this.selectedFunctionCallIds[this._currentFileName()][name] = callId;
 	}
 
 }

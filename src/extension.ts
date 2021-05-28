@@ -62,7 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument(() => {
             if (LiveValuesPanel.currentPanel && vscode.window.activeTextEditor) {
-				LiveValuesPanel.currentPanel.testsTracker.runTest();
+				LiveValuesPanel.currentPanel.testsTracker.runTest({});
             }
         })
 	);

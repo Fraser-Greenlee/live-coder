@@ -1,6 +1,31 @@
 import * as vscode from "vscode";
 import { exec, ExecException } from 'child_process';
-import { resolve } from "dns";
+
+
+function ensureTerminalExists(): boolean {
+	if ((<any>vscode.window).terminals.length === 0) {
+		vscode.window.showErrorMessage('No active terminals');
+		return false;
+	}
+	return true;
+}
+
+
+function selectTerminal(): Thenable<vscode.Terminal | undefined> {
+	interface TerminalQuickPickItem extends vscode.QuickPickItem {
+		terminal: vscode.Terminal;
+	}
+	const terminals = <vscode.Terminal[]>(<any>vscode.window).terminals;
+	const items: TerminalQuickPickItem[] = terminals.map(t => {
+		return {
+			label: `name: ${t.name}`,
+			terminal: t
+		};
+	});
+	return vscode.window.showQuickPick(items).then(item => {
+		return item ? item.terminal : undefined;
+	});
+}
 
 
 export class TestsTracker {
@@ -8,36 +33,37 @@ export class TestsTracker {
     public static stdout: String = '';
     public static stderr: String = '';
 	public static testMethods: String[] = [];
+    public static terminalId: number = 1;
     public currentTestMethodIndex: number = -1;
 
     public constructor() {
-
+		vscode.window.createTerminal(`Ext Terminal #${TestsTracker.terminalId++}`);
+		vscode.window.showInformationMessage('Hello World 2!');
     }
 
     public noneSelected() {
         return this.currentTestMethodIndex === -1;
     }
 
-    public async runTest() {
-        // TODO: run test in VSCode Terminal
+    public deselect() {
+        this.currentTestMethodIndex = -1;
+    }
 
-        // OLD
-		let response = this._getLiveValues();
-		response.then((liveValuesAndTestOutput) => {
-			if (liveValuesAndTestOutput === undefined) {
-                const pythonPath: string = vscode.workspace.getConfiguration('python').get('pythonPath')!;
-				this._panel.webview.html = this._errorHTML(
-					`<b>Error</b> Unable to run test.
-                    Try running it yourself with <code>${pythonPath} -m unittest ${method}</code>`
-				);
-			} else {
-				this._currentTestMethodIndex = methodIndex;
-				this._panel.webview.html = this._liveValuesHTML(
-					liveValuesAndTestOutput[0],
-					liveValuesAndTestOutput[1]
-				);
-			}
-		});
+    public async runTest({methodIndex = null, method = null}: {methodIndex?: number | null, method?: string | null}) {
+        if (methodIndex) {
+            if (TestsTracker.testMethods[methodIndex] !== method) {
+                throw new Error('Got non matching test method');
+            }
+            this.currentTestMethodIndex = methodIndex;
+        }
+		if (ensureTerminalExists()) {
+			selectTerminal().then(terminal => {
+				if (terminal) {
+                    // TODO use proper command
+					terminal.sendText("echo 'Hello world!'");
+				}
+			});
+		}
     }
 
     public async refreshTestMethods() {

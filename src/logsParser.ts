@@ -141,4 +141,6 @@ export function parseExecution(logs: string[]) {
             methodExecs.pop();
         }
     });
+
+    return allFiles;
 }

@@ -93,7 +93,7 @@ class ExecutedFunction {
             this.groupsStack.pop();
         }
 
-        if (this.groupsStack && this.groupsStack[-1] && tab === this.groupsStack[-1].tab && line_num != this.groupsStack[-1].line_num) {
+        if (this.groupsStack && this.groupsStack[-1] && tab === this.groupsStack[-1].tab && lineNum !== this.groupsStack[-1].line_num) {
             this.groupsStack.pop();
         }
 
@@ -181,34 +181,34 @@ class LineGroup {
     */
     public lineNum: number;
     public tab: number;
-    public groupsStack: (LineGroup|Line)[][];
+    public groups: (LineGroup|Line)[][];
 
     constructor(lineNum: number, tab: number) {
         this.lineNum = lineNum;
         this.tab = tab;
-        this.groupsStack = new Array();
-        this.groupsStack.push(new Array());
+        this.groups = new Array();
+        this.groups.push(new Array());
     }
 
     public addLine(line: Line) {
-        this.groupsStack[-1].push(line);
+        this.groups[-1].push(line);
     }
 
     public startNewGroup() {
-        this.groupsStack.push([]);
+        this.groups.push([]);
     }
 
     public getLastLine() {
-        if (this.groupsStack && this.groupsStack[-1]) {
-            return this.groupsStack[-1][-1];
+        if (this.groups && this.groups[-1]) {
+            return this.groups[-1][-1];
         }
     }
 
     public setLastLine(line: Line) {
-        if (this.groupsStack && this.groupsStack[-1]) {
-            this.groupsStack[-1][-1] = line;
+        if (this.groups && this.groups[-1]) {
+            this.groups[-1][-1] = line;
         } else {
-            throw new Error('No line to set.')
+            throw new Error('No line to set.');
         }
     }
 }
@@ -241,5 +241,5 @@ class FunctionLink extends Line {
 }
 
 export {
-    AllFiles
+    AllFiles, File, aFunction, ExecutedFunction, LineGroup, Line, FunctionLink
 };

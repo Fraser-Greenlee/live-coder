@@ -1,3 +1,8 @@
+/*
+
+# OLD FILE
+
+*/
 import * as vscode from "vscode";
 import { exec, ExecException } from 'child_process';
 import { LiveValuesPanel } from "./LiveValuesPanel";
@@ -25,7 +30,7 @@ function runTest(testId: string) {
     return Promise.race([runTestPromise, timeoutPromise]).then(function(value) {
         if (value === 'completed') {
             LiveValuesPanel.currentPanel!.testMethods = LiveValuesPanel.currentPanel!.stdout.trim().split('\n');
-            LiveValuesPanel.currentPanel!.refreshWebview(true);
+            LiveValuesPanel.currentPanel!.refreshWebview();
         } else {
             vscode.window.showErrorMessage(String(value));
         }
