@@ -28,18 +28,21 @@ export class LiveValuesPanel {
 
 	private _liveValues: any = {};
 	private _callIdToFunction: any = {};
-	private _testOutput: string[] = new Array();
 	private _testOutputIsClosed: boolean = true;
 	public webviewLastScrolled: number = Date.now();
 
-	
 	public static createOrShow(extensionUri: vscode.Uri) {
+
+		if (this.badSettingsError()) {
+			return false;
+		}
+
         const column: number = vscode.ViewColumn.Beside;
 
 		// If we already have a panel, show it.
 		if (LiveValuesPanel.currentPanel) {
 			LiveValuesPanel.currentPanel._panel.reveal(column);
-			return;
+			return true;
 		}
 
 		// Otherwise, create a new panel.
@@ -58,6 +61,7 @@ export class LiveValuesPanel {
             }
         );
 		LiveValuesPanel.currentPanel = new LiveValuesPanel(panel, extensionUri);
+		return true;
 	}
 
 	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -103,11 +107,6 @@ export class LiveValuesPanel {
 		return false;
 	}
 
-	private _getLines(text: string) {
-		const lines = text.split('\n');
-		return '<span>' + lines.join('</span><span>') + '</span>';
-	}
-
 	private _scrollToLine(line: number) {
 		this.webviewLastScrolled = Date.now();
 		const range = new vscode.Range(line, 0, line + 1, 0);
@@ -126,7 +125,7 @@ export class LiveValuesPanel {
 						this.testsTracker.deselect();
 						this.refreshWebview();
 					case 'runTestMethod':
-						this.testsTracker.runTest({methodIndex: message.methodIndex, method: message.method});
+						this.testsTracker.runTest({method: message.method});
 					case 'toggleTestOutput':
 						this._testOutputIsClosed = this._testOutputIsClosed === false;
 					case 'openFunctionCall':

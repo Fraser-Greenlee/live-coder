@@ -54,6 +54,9 @@ export class LogsTracker {
         this.logFilesWithCommands = new Array();
         this.selectedLogPath = '';
 
+        if (!fs.existsSync(this.logsFolder)) {
+            fs.mkdirSync(this.logsFolder);
+        }
         this.refresh();
         fs.watch(this.logsFolder, (eventType, filename) => {
             // could be either 'rename' or 'change'. new file event and delete

@@ -22,8 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('live-coder.liveValues', () => {
-			LiveValuesPanel.createOrShow(context.extensionUri);
-			if (LiveValuesPanel.badSettingsError()) {
+			if (!LiveValuesPanel.createOrShow(context.extensionUri)) {
 				setTimeout(() => {
 					LiveValuesPanel.kill();
 				}, 500);

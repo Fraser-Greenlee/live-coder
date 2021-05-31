@@ -301,8 +301,7 @@ function _messageRunTestMethod(vscode) {
     const methodPicker = document.getElementById("testPicker");
     vscode.postMessage({
         command: 'runTestMethod',
-        method: methodPicker.value,
-        methodIndex: methodPicker.selectedIndex
+        method: methodPicker.value
     });
 }
 

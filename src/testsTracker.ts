@@ -45,14 +45,12 @@ export class TestsTracker {
         }
     }
 
-    public async runTest({methodIndex = undefined, method = undefined}: {methodIndex?: number, method?: string}) {
-        console.log("test");
-        console.log(methodIndex);
-        console.log(methodIndex === undefined);
-        console.log(methodIndex === null);
-        if (methodIndex) {
-            if (TestsTracker.testMethods[methodIndex] !== method) {
-                throw new Error('Got non matching test method');
+    public async runTest({method = undefined}: {method?: string}) {
+        console.log("runTest");
+        if (method) {
+            const methodIndex = TestsTracker.testMethods.indexOf(method);
+            if (methodIndex === -1) {
+                throw new Error('Got unknown test method');
             }
             this.currentTestMethodIndex = methodIndex;
         }
@@ -104,9 +102,15 @@ print_suite(unittest.defaultTestLoader.discover('.'))
 			setTimeout(resolve, 7000, "Took too long to discover unittests."); 
 		});
 		return Promise.race([queryTestsPromise, timeoutPromise]).then(function(value) {
+            const txtOutput = TestsTracker.stdout.trim();
 			if (value === 'completed') {
-                TestsTracker.testMethods = TestsTracker.stdout.trim().split('\n');
-                return true;
+                if (txtOutput) {
+                    TestsTracker.testMethods = TestsTracker.stdout.trim().split('\n');
+                    return true;
+                } else {
+                    vscode.window.showErrorMessage("No tests found. Be sure to have an `__init__.py` file in your tests folder.");
+                    return false;                    
+                }
             } else {
                 vscode.window.showErrorMessage(String(value));
                 return false;
