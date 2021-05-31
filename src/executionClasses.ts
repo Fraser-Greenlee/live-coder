@@ -160,8 +160,11 @@ class ExecutedFunction {
         }
     }
 
-    public addLine(lineNum: number, value: string, {callId = null}: {callId?: string | null}) {
+    public addLine(lineNum: number, value: string, callId: string | null, isReturn: boolean | null) {
         lineNum = this.normLineNum(lineNum);
+        if (!isReturn) {
+            throw new Error('No line_num for non-return line.');
+        }
 
         let line: (FunctionLink | Line);
         if (callId) {

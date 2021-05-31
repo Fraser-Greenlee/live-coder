@@ -61,7 +61,6 @@
 		"webpack-cli": "^4.4.0"
 	},
 	"dependencies": {
-		"chokidar": "^3.5.1",
 		"line-reader": "^0.4.0"
 	}
 }

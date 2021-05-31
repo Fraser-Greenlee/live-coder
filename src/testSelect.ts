@@ -20,11 +20,12 @@ export class TestSelect {
     }
     
     private _getPreviousRunsOptions() {
-        let options: string[] = new Array(this.logsTracker.logFilesWithCommands.length);
-        for (let i = 0; i < TestsTracker.testMethods.length; i++) {
+        const numLogFiles = this.logsTracker.logFilesWithCommands.length;
+        let options: string[] = new Array(numLogFiles);
+        for (let i = 0; i < numLogFiles; i++) {
             options[i] = this._previousRunOption(
-                this.logsTracker.logFilesWithCommands[i][0],
-                this.logsTracker.logFilesWithCommands[i][1]
+                this.logsTracker.logFilesWithCommands[i].path,
+                this.logsTracker.logFilesWithCommands[i].command
             );
         }
         return options.join('');

@@ -61,6 +61,7 @@ export class LiveValuesPanel {
 	}
 
 	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+		console.log("constructor");
 		this._panel = panel;
 		this._extensionUri = extensionUri;
 		this._currentActiveTextEditor = vscode.window.activeTextEditor!;
@@ -70,9 +71,9 @@ export class LiveValuesPanel {
 		this.logsTracker = new logsTracker();
 		this.testsTracker = new TestsTracker();
 		this.testSelect = new TestSelect(this.testsTracker, this.logsTracker);
-		this.testsTracker.refreshTestMethods().then((worked) => {
+		this.testsTracker.findTestMethods().then((worked) => {
 			if (worked) {
-                LiveValuesPanel.currentPanel!.refreshWebview();
+				this.refreshWebview();
 			}
 		});
         this._addWebviewMessageHandlers();
@@ -183,32 +184,31 @@ export class LiveValuesPanel {
             this._panel.title = `Live Coder: ` + fullPath.split('/').pop();
 		}
 
-		if (this.logsTracker.noneSelected()) {
-			this._panel.webview.html = this._liveValuesErrorMessage('No active test or log file.', 'Select a test method or log file from the dropdown above.');
-		}
+		let content: string;
 		if (this._currentActiveTextEditor === undefined) {
-			this._panel.webview.html = this._liveValuesErrorMessage('No active editor.', 'Open a Python file to see it run.');
-		}
-
-		this._panel.webview.html = this._liveValuesHTML(
-			this.logsTracker.getRender(
+			content = this._liveValuesErrorMessage('No active editor.', 'Open a Python file to see it run.');
+		} else {
+			const render = this.logsTracker.getRender(
 				this._currentActiveTextEditor.document.fileName
-			)
-		);
+			);
+			content = `
+				<div id="scrollableLiveValues">
+					${render}
+					<div id="tooltipBackground"></div>
+				</div>`;
+		}
+		this._panel.webview.html = this._liveValuesHTML(content);
 		this.scrollPanel(this._currentActiveTextEditor);
 	}
 
-	private _liveValuesHTML(render: string) {
+	private _liveValuesHTML(content: string) {
 		return this._getHtmlForWebview(
             this._panel.webview,
             `<div id="header">
 				${this.testSelect.html()}
-				<a id="issueLink" href="https://github.com/Fraser-Greenlee/live-coder/issues">report an issue</a>
+				<a id="issueLink" target="_blank" href="https://github.com/Fraser-Greenlee/live-coder/issues">Feedback</a>
 			</div>
-			<div id="scrollableLiveValues">
-				${render}
-				<div id="tooltipBackground"></div>
-			</div>`
+			${content}`
 		);
 	}
 
@@ -329,32 +329,6 @@ export class LiveValuesPanel {
 			</div>`;
 	}
 
-	private _noLiveValuesResponse() {
-		if (this._currentTestId === "") {
-			return this._liveValuesErrorMessage('No active test.', 'Select a test method from the dropdown above.');
-		}
-		if (this._currentActiveTextEditor === undefined) {
-			return this._liveValuesErrorMessage('No active editor.', 'Open a Python file to see it run.');
-		}
-		return null;
-	}
-
-	private _liveValuesResponseError(response: any) {
-		if (response.errorType === 'ExtensionError') {
-			this.dispose();
-		} else if (response.errorType === 'ImportError') {
-			response.message = response.message;
-		}
-		vscode.window.showErrorMessage(response.message);
-	}
-
-	private _assignLiveValuesAttributesFromResponse(response: any) {
-		this._liveValues = response.live_values;
-		this._callIdToFunction = response.call_id_to_function;
-		this.selectedFunctionCallIds = this._getSelectedFunctionCallIds();
-		this._testOutput = response.test_output.split('\n');
-	}
-
 	private _hideFunctionCall(selectedCallId: string, callId: string) {
 		if (selectedCallId !== callId) {
 			return 'hide';
@@ -399,16 +373,6 @@ export class LiveValuesPanel {
 		const callIds: string = this._functionCallIds(functionInfo.calls);
 		const buttons: string = this._functionButtons(functionName, functionInfo.calls);
 		return `<div class="function" id="${callIds}" style="top: ${(functionInfo.startingLineNumber - 1) * 18}px">${buttons}${functionCallsHTML.join('')}</div>`;
-	}
-
-	private _htmlForFunctions(functionsToCalls: any, selectedFunctionCallIds: any) {
-		let hmlFunctions: string[] = new Array();
-		Object.keys(functionsToCalls).forEach(functionName => {
-			hmlFunctions.push(
-				this._htmlForAFunction(functionsToCalls[functionName], selectedFunctionCallIds[functionName], functionName)
-			);
-		});
-		return hmlFunctions.join('');
 	}
 
 	private _currentFileName() {

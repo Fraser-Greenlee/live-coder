@@ -43,6 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	/*
     context.subscriptions.push(
         vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 			if (LiveValuesPanel.currentPanel && Date.now() - LiveValuesPanel.currentPanel.webviewLastScrolled > 50) {
@@ -50,7 +51,9 @@ export function activate(context: vscode.ExtensionContext) {
 			}
         })
     );
+	*/
 
+	/*
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(() => {
             if (_newFileCouldHaveLiveValues()) {
@@ -58,14 +61,17 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
 	);
+	*/
 
+	/*
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument(() => {
-            if (LiveValuesPanel.currentPanel && vscode.window.activeTextEditor) {
+            if (LiveValuesPanel.currentPanel && vscode.window.activeTextEditor && !LiveValuesPanel.currentPanel.testsTracker.noneSelected()) {
 				LiveValuesPanel.currentPanel.testsTracker.runTest({});
             }
         })
 	);
+	*/
 }
 
 // this method is called when your extension is deactivated

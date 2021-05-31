@@ -2,15 +2,6 @@ import * as vscode from "vscode";
 import { exec, ExecException } from 'child_process';
 
 
-function ensureTerminalExists(): boolean {
-	if ((<any>vscode.window).terminals.length === 0) {
-		vscode.window.showErrorMessage('No active terminals');
-		return false;
-	}
-	return true;
-}
-
-
 function selectTerminal(): Thenable<vscode.Terminal | undefined> {
 	interface TerminalQuickPickItem extends vscode.QuickPickItem {
 		terminal: vscode.Terminal;
@@ -33,12 +24,11 @@ export class TestsTracker {
     public static stdout: String = '';
     public static stderr: String = '';
 	public static testMethods: String[] = [];
-    public static terminalId: number = 1;
+    public static terminalId: number = -1;
     public currentTestMethodIndex: number = -1;
 
     public constructor() {
-		vscode.window.createTerminal(`Ext Terminal #${TestsTracker.terminalId++}`);
-		vscode.window.showInformationMessage('Hello World 2!');
+        this.ensureTerminalExists();
     }
 
     public noneSelected() {
@@ -49,24 +39,40 @@ export class TestsTracker {
         this.currentTestMethodIndex = -1;
     }
 
-    public async runTest({methodIndex = null, method = null}: {methodIndex?: number | null, method?: string | null}) {
+    private ensureTerminalExists() {
+        if ((<any>vscode.window).terminals.length === 0) {
+            vscode.window.createTerminal(`Ext Terminal #${TestsTracker.terminalId++}`);
+        }
+    }
+
+    public async runTest({methodIndex = undefined, method = undefined}: {methodIndex?: number, method?: string}) {
+        console.log("test");
+        console.log(methodIndex);
+        console.log(methodIndex === undefined);
+        console.log(methodIndex === null);
         if (methodIndex) {
             if (TestsTracker.testMethods[methodIndex] !== method) {
                 throw new Error('Got non matching test method');
             }
             this.currentTestMethodIndex = methodIndex;
         }
-		if (ensureTerminalExists()) {
-			selectTerminal().then(terminal => {
-				if (terminal) {
-                    // TODO use proper command
-					terminal.sendText("echo 'Hello world!'");
-				}
-			});
-		}
+        this.ensureTerminalExists();
+        selectTerminal().then(terminal => {
+            if (terminal) {
+                // TODO use proper command
+                terminal.sendText("echo 'Hello world!'");
+                // TODO get python path
+                const pythonPath: string | undefined = vscode.workspace.getConfiguration('python').get('pythonPath');
+                if (pythonPath) {
+                    terminal.sendText(`${pythonPath} -m unittests ${method}`);
+                } else {
+                    vscode.window.showErrorMessage("Need to set python.pythonPath in your settings.");
+                }
+            }
+        });
     }
 
-    public async refreshTestMethods() {
+    public async findTestMethods() {
         TestsTracker.stdout = '';
         TestsTracker.stderr = '';
 		var queryTestsPromise = new Promise((resolve, reject) => {

@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import * as chokidar from "chokidar";
 import * as lineReader from "line-reader";
 import * as pathModule from "path";
 import * as fs from "fs";
@@ -55,9 +54,11 @@ export class LogsTracker {
         this.selectedLogPath = '';
 
         this.refresh();
-        chokidar.watch(this.logsFolder).on('all', (event, path) => {
-            console.log(event, path);
-            this.refresh();
+        fs.watch(this.logsFolder, (eventType, filename) => {
+            // could be either 'rename' or 'change'. new file event and delete
+            // also generally emit 'rename'
+            console.log(eventType, filename);
+            // this.refresh();
         });
 	}
 
@@ -74,6 +75,15 @@ export class LogsTracker {
     }
 
     public getRender(path: string) {
+        if (!this.selectedLogPath) {
+            return `
+                <div class="centre">
+                    <div class="widthLimiter">
+                        <span><b>No active test or log file.</b> Select a test method or log file from the dropdown above.</span>
+                    </div>
+                </div>
+            `;
+        }
         if (!(this.selectedLogPath in this.renders)) {
             this.render(); // populate `this.renders`
         }
