@@ -32,7 +32,7 @@ export class LiveValuesPanel {
 	private _testOutputIsClosed: boolean = true;
 	public webviewLastScrolled: number = Date.now();
 
-
+	
 	public static createOrShow(extensionUri: vscode.Uri) {
         const column: number = vscode.ViewColumn.Beside;
 
@@ -61,7 +61,6 @@ export class LiveValuesPanel {
 	}
 
 	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-		console.log("constructor");
 		this._panel = panel;
 		this._extensionUri = extensionUri;
 		this._currentActiveTextEditor = vscode.window.activeTextEditor!;
@@ -395,5 +394,4 @@ export class LiveValuesPanel {
 	private _updateFunctionCallSelection(callId: string, name: string) {
 		this.selectedFunctionCallIds[this._currentFileName()][name] = callId;
 	}
-
 }

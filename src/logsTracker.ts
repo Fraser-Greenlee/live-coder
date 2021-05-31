@@ -7,6 +7,7 @@ import { parseExecution } from "./logsParser";
 import { AllFiles } from "./executionClasses";
 import { renderCalls } from "./logsRenderCalls";
 import { renderFiles } from "./logsRenderFiles";
+import { logsFolder } from "./config";
 
 
 function getCurrentFiles(liveCoderFolder: string) {
@@ -49,7 +50,7 @@ export class LogsTracker {
     } = {};
 
 	public constructor() {
-        this.logsFolder = pathModule.join(vscode.workspace.workspaceFolders![0].uri.path, '.live_coder');
+        this.logsFolder = pathModule.join(vscode.workspace.workspaceFolders![0].uri.path, logsFolder);
         this.logFilesWithCommands = new Array();
         this.selectedLogPath = '';
 
