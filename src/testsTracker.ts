@@ -2,33 +2,16 @@ import * as vscode from "vscode";
 import { exec, ExecException } from 'child_process';
 
 
-function selectTerminal(): Thenable<vscode.Terminal | undefined> {
-	interface TerminalQuickPickItem extends vscode.QuickPickItem {
-		terminal: vscode.Terminal;
-	}
-	const terminals = <vscode.Terminal[]>(<any>vscode.window).terminals;
-	const items: TerminalQuickPickItem[] = terminals.map(t => {
-		return {
-			label: `name: ${t.name}`,
-			terminal: t
-		};
-	});
-	return vscode.window.showQuickPick(items).then(item => {
-		return item ? item.terminal : undefined;
-	});
-}
-
-
 export class TestsTracker {
 
     public static stdout: String = '';
     public static stderr: String = '';
 	public static testMethods: String[] = [];
-    public static terminalId: number = -1;
     public currentTestMethodIndex: number = -1;
+    private terminal: vscode.Terminal;
 
     public constructor() {
-        this.ensureTerminalExists();
+        this.terminal = vscode.window.createTerminal(`Live Coder Test Runner`);
     }
 
     public noneSelected() {
@@ -40,8 +23,8 @@ export class TestsTracker {
     }
 
     private ensureTerminalExists() {
-        if ((<any>vscode.window).terminals.length === 0) {
-            vscode.window.createTerminal(`Ext Terminal #${TestsTracker.terminalId++}`);
+        if (!this.terminal) {
+            this.terminal = vscode.window.createTerminal(`Live Coder Test Runner`);
         }
     }
 
@@ -55,19 +38,12 @@ export class TestsTracker {
             this.currentTestMethodIndex = methodIndex;
         }
         this.ensureTerminalExists();
-        selectTerminal().then(terminal => {
-            if (terminal) {
-                // TODO use proper command
-                terminal.sendText("echo 'Hello world!'");
-                // TODO get python path
-                const pythonPath: string | undefined = vscode.workspace.getConfiguration('python').get('pythonPath');
-                if (pythonPath) {
-                    terminal.sendText(`${pythonPath} -m unittests ${method}`);
-                } else {
-                    vscode.window.showErrorMessage("Need to set python.pythonPath in your settings.");
-                }
-            }
-        });
+        const pythonPath: string | undefined = vscode.workspace.getConfiguration('python').get('pythonPath');
+        if (pythonPath) {
+            this.terminal.sendText(`${pythonPath} -m unittests ${method}`);
+        } else {
+            vscode.window.showErrorMessage("Need to set python.pythonPath in your settings.");
+        }
     }
 
     public async findTestMethods() {
