@@ -299,9 +299,11 @@ function _pickedNull(selectId) {
 
 function _messageRunTestMethod(vscode) {
     const methodPicker = document.getElementById("testPicker");
+    const valueType = methodPicker.options[methodPicker.selectedIndex].getAttribute("data-field_type");
     vscode.postMessage({
-        command: 'runTestMethod',
-        method: methodPicker.value
+        command: 'selectLogsOrTest',
+        method: methodPicker.value,
+        valueType: valueType
     });
 }
 

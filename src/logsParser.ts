@@ -4,12 +4,12 @@ const LINE_KEY = '4EmR7TzOvAICFVCp2wcU ';
 
 
 function isSnoopLine(line: string) {
-    return line.startsWith(LINE_KEY);
+    return line.startsWith('INFO:root:' + LINE_KEY);
 }
 
 function lineCode(line: string) {
-    // e.g. "4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
-    return line.substring(LINE_KEY.length).trim().substring('20:10:20.44 '.length);
+    // e.g. "INFO:root:4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
+    return line.substring('INFO:root:'.length + LINE_KEY.length).trim().substring('20:10:20.44 '.length);
 }
 
 function isCallLine(code: string) { 
@@ -72,11 +72,16 @@ function findPrevLineNum(lines: string[], i: number) {
     let lineNum = null;
     let c = i - 1;
     while (lineNum === null && c > -1) {
-        const line = lines[c];
-        if (isCallLine(line)) {
-            lineNum = Number(line.split(' ')[-1]);
+
+        if (!isSnoopLine(lines[c])) {
+            continue;
+        }
+
+        const code = lineCode(lines[c]);
+        if (isCallLine(code)) {
+            lineNum = Number(code.split(' ')[-1]);
         } else {
-            lineNum = getLineNum(lineCode(line));
+            lineNum = getLineNum(code);
         }
         c -= 1;
     }
@@ -125,7 +130,7 @@ export function parseExecution(logs: string[]) {
         } else if (isCodeLine(code)) {
             const lineNum = getLineNum(code);
             if (!lineNum) {
-                throw new Error(`Missing line number for state "${line}".`);
+                throw new Error(`Missing line number for code line "${line}".`);
             }
             const tab: number = getTab(code);
             methodExecs[-1].handleGroup(lineNum, tab, isGroupLine(line));
@@ -133,7 +138,7 @@ export function parseExecution(logs: string[]) {
         } else if (isReturnLine(code)) {
             const lineNum = getLineNum(lineCode(lines[i-1]));
             if (!lineNum) {
-                throw new Error(`Missing line number for state "${line}".`);
+                throw new Error(`Missing line number for return line "${line}".`);
             }
             const value = parseReturn(code);
             if (methodExecs.length >= 2) {

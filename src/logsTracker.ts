@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import * as lineReader from "line-reader";
+import * as readline from "readline";
 import * as pathModule from "path";
 import * as fs from "fs";
 import { LiveValuesPanel } from "./LiveValuesPanel";
@@ -8,22 +8,28 @@ import { AllFiles } from "./executionClasses";
 import { renderCalls } from "./logsRenderCalls";
 import { renderFiles } from "./logsRenderFiles";
 import { logsFolder } from "./config";
+import lineReader = require("line-reader");
 
 
-function getCurrentFiles(liveCoderFolder: string) {
+async function getCurrentFiles(liveCoderFolder: string) {
     let logFiles: {path: string, command: string}[] = new Array();
-    fs.readdir(liveCoderFolder, (err, files) => {
-        files.forEach(file => {
-            if (!file.endsWith('.txt')) {
-                return;
-            }
-            lineReader.eachLine(pathModule.join(liveCoderFolder, file), (line) => {
-                // first line should have command for file
-                logFiles.push({path: file, command: line});
-                return false;
-            });
+    var files = fs.readdirSync(liveCoderFolder);
+    for (const file of files) {
+        if (!file.endsWith('.txt')) {
+            return;
+        }
+
+        const rl = readline.createInterface({
+            input: fs.createReadStream(pathModule.join(liveCoderFolder, file)), //or fileStream 
+            output: process.stdout
         });
-    });
+
+        const it = rl[Symbol.asyncIterator]();
+        const line1 = (await it.next()).value;
+        if (typeof(line1) === "string") {
+            logFiles.push({path: file, command: line1});
+        }
+    }
     return logFiles;
 }
 
@@ -31,7 +37,7 @@ function getCurrentFiles(liveCoderFolder: string) {
 export class LogsTracker {
 
     public logsFolder: string;
-    public selectedLogPath: string;
+    public selectedLogFile: string;
     public logFilesWithCommands: {path: string, command: string}[];
     public renders: {
         [logsPath: string]: {
@@ -52,7 +58,7 @@ export class LogsTracker {
 	public constructor() {
         this.logsFolder = pathModule.join(vscode.workspace.workspaceFolders![0].uri.path, logsFolder);
         this.logFilesWithCommands = new Array();
-        this.selectedLogPath = '';
+        this.selectedLogFile = '';
 
         if (!fs.existsSync(this.logsFolder)) {
             fs.mkdirSync(this.logsFolder);
@@ -61,25 +67,29 @@ export class LogsTracker {
         fs.watch(this.logsFolder, (eventType, filename) => {
             // could be either 'rename' or 'change'. new file event and delete
             // also generally emit 'rename'
-            console.log(eventType, filename);
-            // this.refresh();
+            console.log('watch', eventType, filename);
+            if (this.selectedLogFile === filename) {
+                this.refresh();
+            }
         });
 	}
 
     public noneSelected() {
-        return this.selectedLogPath === '';
+        return this.selectedLogFile === '';
     }
 
     public refresh() {
-        this.logFilesWithCommands = getCurrentFiles(this.logsFolder);
-        this.render();
-        if (LiveValuesPanel.currentPanel) {
-            LiveValuesPanel.currentPanel.refreshWebview();
-        }
+        getCurrentFiles(this.logsFolder).then((logFiles) => {
+            this.logFilesWithCommands = logFiles!;
+            this.render();
+            if (LiveValuesPanel.currentPanel) {
+                LiveValuesPanel.currentPanel.refreshWebview();
+            }
+        });
     }
 
     public getRender(path: string) {
-        if (!this.selectedLogPath) {
+        if (!this.selectedLogFile) {
             return `
                 <div class="centre">
                     <div class="widthLimiter">
@@ -88,11 +98,11 @@ export class LogsTracker {
                 </div>
             `;
         }
-        if (!(this.selectedLogPath in this.renders)) {
+        if (!(this.selectedLogFile in this.renders)) {
             this.render(); // populate `this.renders`
         }
-        if (path in this.renders[this.selectedLogPath]) {
-            return this.renders[this.selectedLogPath][path];
+        if (path in this.renders[this.selectedLogFile]) {
+            return this.renders[this.selectedLogFile][path];
         } else {
             return '<h1>no logs for this file</h1>';
         }
@@ -122,16 +132,13 @@ export class LogsTracker {
     }    
 
     public render() {
-        if (this.selectedLogPath) {
-            let lines: string[] = new Array();
-            lineReader.eachLine(this.logsFolder + this.selectedLogPath, (line) => {
-                lines.push(line);
-            });
+        if (this.selectedLogFile) {
+            let lines: string[] = fs.readFileSync(pathModule.join(this.logsFolder, this.selectedLogFile)).toString().split("\n");
             const parse: AllFiles = parseExecution(lines);
             const {funcCallRender, callIdToFunction} = renderCalls(parse);
             this.selectedCallIds = this.getSelectedCallIds(this.selectedCallIds, callIdToFunction);
             this.callIdToFunction = callIdToFunction;
-            this.renders[this.selectedLogPath] = renderFiles(funcCallRender, this.selectedCallIds);
+            this.renders[this.selectedLogFile] = renderFiles(funcCallRender, this.selectedCallIds);
         }
     }
 }

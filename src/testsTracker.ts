@@ -40,7 +40,7 @@ export class TestsTracker {
         this.ensureTerminalExists();
         const pythonPath: string | undefined = vscode.workspace.getConfiguration('python').get('pythonPath');
         if (pythonPath) {
-            this.terminal.sendText(`${pythonPath} -m unittests ${method}`);
+            this.terminal.sendText(`${pythonPath} -m unittest ${method}`);
         } else {
             vscode.window.showErrorMessage("Need to set python.pythonPath in your settings.");
         }
@@ -75,7 +75,7 @@ print_suite(unittest.defaultTestLoader.discover('.'))
 		});
 
 		var timeoutPromise = new Promise(function(resolve) { 
-			setTimeout(resolve, 7000, "Took too long to discover unittests."); 
+			setTimeout(resolve, 7000, "Took too long to discover tests."); 
 		});
 		return Promise.race([queryTestsPromise, timeoutPromise]).then(function(value) {
             const txtOutput = TestsTracker.stdout.trim();

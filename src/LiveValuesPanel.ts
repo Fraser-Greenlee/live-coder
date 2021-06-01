@@ -1,8 +1,11 @@
 import * as vscode from "vscode";
+import * as pathModule from "path";
 import { getNonce } from "./getNonce";
 import { LogsTracker as logsTracker } from "./logsTracker";
 import { TestsTracker } from "./testsTracker";
 import { TestSelect } from "./testSelect";
+import { logsFolder } from "./config";
+import { isDigit, isLetter } from "./utils";
 
 export class LiveValuesPanel {
 	/**
@@ -101,7 +104,7 @@ export class LiveValuesPanel {
 			return true;
 		}
 		if (vscode.workspace.getConfiguration('python.testing').get('unittestEnabled') === false) {
-			vscode.window.showErrorMessage('Please enable unittests in your settings. Do this with the "Python: Configure Tests" command.');
+			vscode.window.showErrorMessage('Please enable unittest in your settings. Do this with the "Python: Configure Tests" command.');
 			return true;
 		}
 		return false;
@@ -115,6 +118,21 @@ export class LiveValuesPanel {
 		);
 	}
 
+	private _sanitize(filename: string) {
+		let parts: string[] = new Array();
+		for (let c of filename) {
+			if (isDigit(c) || isLetter(c) || c === ' ') {
+				parts.push(c);
+			}
+		}
+		return parts.join('');
+	}
+
+	private _methodToLogPath(method: string) {
+		method = method.split(' ').join(' ');
+		return this._sanitize(method).substring(0, 255) + '.txt';
+	}
+
 	private _addWebviewMessageHandlers() {
 		this._panel.webview.onDidReceiveMessage(
 			message => {
@@ -124,8 +142,14 @@ export class LiveValuesPanel {
 					case 'clearLiveValues':
 						this.testsTracker.deselect();
 						this.refreshWebview();
-					case 'runTestMethod':
-						this.testsTracker.runTest({method: message.method});
+					case 'selectLogsOrTest':
+						if (message.valueType === 'liveTest') {
+							this.logsTracker.selectedLogFile = this._methodToLogPath(message.method);
+							this.testsTracker.runTest({method: message.method});
+						} else {
+							this.logsTracker.selectedLogFile = message.method;
+							this.logsTracker.refresh();
+						}
 					case 'toggleTestOutput':
 						this._testOutputIsClosed = this._testOutputIsClosed === false;
 					case 'openFunctionCall':

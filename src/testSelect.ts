@@ -13,7 +13,7 @@ export class TestSelect {
 
     private _previousRunOption(logFile: string, label: string) {
         var selected: string = '';
-        if (this.logsTracker.selectedLogPath === logFile) {
+        if (this.logsTracker.selectedLogFile === logFile) {
             selected = 'selected';
         }
         return `<option value="${logFile}" data-field_type="logFile" ${selected}>${label}</option>`;
