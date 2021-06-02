@@ -5,7 +5,7 @@ import { LogsTracker as logsTracker } from "./logsTracker";
 import { TestsTracker } from "./testsTracker";
 import { TestSelect } from "./testSelect";
 import { logsFolder } from "./config";
-import { isDigit, isLetter } from "./utils";
+import { isDigit, isLetter, split } from "./utils";
 
 export class LiveValuesPanel {
 	/**
@@ -129,7 +129,7 @@ export class LiveValuesPanel {
 	}
 
 	private _methodToLogPath(method: string) {
-		method = method.split(' ').join(' ');
+		method = split(method, ' ').join(' ');
 		return this._sanitize(method).substring(0, 255) + '.txt';
 	}
 
@@ -203,7 +203,7 @@ export class LiveValuesPanel {
         if (vscode.window.activeTextEditor) {
 			this._currentActiveTextEditor = vscode.window.activeTextEditor;
 			const fullPath: string = this._currentActiveTextEditor.document.fileName;
-            this._panel.title = `Live Coder: ` + fullPath.split('/').pop();
+            this._panel.title = `Live Coder: ` + split(fullPath, '/').pop();
 		}
 
 		let content: string;
@@ -400,7 +400,7 @@ export class LiveValuesPanel {
 	private _currentFileName() {
 		const fullPath: string = this._currentActiveTextEditor.document.uri.path;
 		const projectRootTerms = vscode.workspace.workspaceFolders![0].uri.path;
-		const pathTerms = fullPath.split('/');
+		const pathTerms = split(fullPath, '/');
 		const localPathTerms = pathTerms.slice(projectRootTerms.length);
 		return localPathTerms.join('/');
 	}

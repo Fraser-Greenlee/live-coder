@@ -8,6 +8,7 @@ import { AllFiles } from "./executionClasses";
 import { renderCalls } from "./logsRenderCalls";
 import { renderFiles } from "./logsRenderFiles";
 import * as config from "./config";
+import { split } from "./utils";
 
 
 async function getLogFiles(liveCoderFolder: string) {
@@ -132,7 +133,10 @@ export class LogsTracker {
 
     public render() {
         if (this.selectedLogFile) {
-            let lines: string[] = fs.readFileSync(pathModule.join(this.logsPath, this.selectedLogFile)).toString().split("\n");
+            let lines: string[] = split(
+                fs.readFileSync(pathModule.join(this.logsPath, this.selectedLogFile)).toString(),
+                "\n"
+            );
             const parse: AllFiles = parseExecution(lines);
             const {funcCallRender, callIdToFunction} = renderCalls(parse);
             this.selectedCallIds = this.getSelectedCallIds(this.selectedCallIds, callIdToFunction);

@@ -1,14 +1,15 @@
+import { split } from "./utils";
 import { lineKey } from "./config";
 import { AllFiles, ExecutedFunction } from "./executionClasses";
 
 
 function isSnoopLine(line: string) {
-    return line.startsWith('INFO:root:' + lineKey);
+    return line.startsWith(lineKey);
 }
 
 function lineCode(line: string) {
-    // e.g. "INFO:root:4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
-    return line.substring('INFO:root:'.length + lineKey.length).trim().substring('20:10:20.44 '.length);
+    // e.g. "4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
+    return line.substring(lineKey.length).trim().substring('20:10:20.44 '.length);
 }
 
 function isCallLine(code: string) { 
@@ -16,12 +17,12 @@ function isCallLine(code: string) {
 }
 
 function isStateLine(code: string) {
-    const dots = code.split(' ')[0];
+    const dots = split(code, ' ')[0];
     return dots === ".".repeat(dots.length);
 }
 
 function parseState(code: string) {
-    return code.substring(code.split(' ')[0].length);
+    return code.substring(split(code, ' ')[0].length).trim();
 }
 
 function getTab(code: string) {
@@ -30,7 +31,7 @@ function getTab(code: string) {
 }
 
 function isCodeLine(code: string) {
-    return getLineNum(code) !== null;
+    return getLineNum(code) !== undefined;
 }
 
 function isReturnLine(code: string) {
@@ -38,18 +39,18 @@ function isReturnLine(code: string) {
 }
 
 function parseReturn(code: string) {
-    const value = ('<<< Return value from ' + code.split(' ')[4]).length + 1
-    return 'return ' + value;
+    const value = code.substring(('<<< Return value from ' + split(code, ' ')[4]).length + 1);
+    return 'return ' + value.trim();
 }
 
 
 function isGroupLine(code: string) {
-    const tokens = code.split(' ');
+    const tokens = split(code, ' ');
     return tokens.length > 4 && ['for', 'while'].indexOf(tokens[3]) > -1;
 }
 
 function parseMethod(callCode: string) {
-    const tokens = callCode.split(' ');
+    const tokens = split(callCode, ' ');
     const methodName = tokens[3];
     const lineNum = Number(tokens.slice(-1).pop());
     const path = callCode.substring(`>>> Call to ${methodName} in File "`.length, callCode.length - `", line ${lineNum}`.length);
@@ -57,7 +58,7 @@ function parseMethod(callCode: string) {
 }
 
 function getLineNum(line: string) {
-    const tokens = line.split(' ');
+    const tokens = split(line, ' ');
     if (tokens[1] !== '|') {
         return;
     }
@@ -68,9 +69,9 @@ function getLineNum(line: string) {
 }
 
 function findPrevLineNum(lines: string[], i: number) {
-    let lineNum = null;
+    let lineNum = undefined;
     let c = i - 1;
-    while (lineNum === null && c > -1) {
+    while (lineNum === undefined && c > -1) {
 
         if (!isSnoopLine(lines[c])) {
             c -= 1;
@@ -79,7 +80,7 @@ function findPrevLineNum(lines: string[], i: number) {
 
         const code = lineCode(lines[c]);
         if (isCallLine(code)) {
-            lineNum = Number(code.split(' ').slice(-1).pop());
+            lineNum = Number(split(code, ' ').slice(-1).pop());
         } else {
             lineNum = getLineNum(code);
         }
@@ -92,7 +93,13 @@ export function parseExecution(logs: string[]) {
     let allFiles: AllFiles = new AllFiles();
     let methodExecs: ExecutedFunction[] = new Array();
 
-    let lines = logs.map( (l) => l.trim() );
+    let lines = logs.map( (l) => {
+        l = l.trim();
+        if (l.startsWith('INFO:root:')) {
+            return l.substring('INFO:root:'.length);
+        }
+        return l;
+    });
 
     lines.forEach( (line, i) => {
 
@@ -114,7 +121,7 @@ export function parseExecution(logs: string[]) {
             if (methodExecs.length > 0) {
                 const callToLineNum = findPrevLineNum(lines, i);
                 if (callToLineNum) {
-                    methodExecs.slice(-1)[0].addLine(callToLineNum, methodName, aMethodExec.callId, false);
+                    methodExecs[methodExecs.length-1].addLine(callToLineNum, methodName, aMethodExec.callId, false);
                 }
             }
             methodExecs.push(aMethodExec);
@@ -125,7 +132,7 @@ export function parseExecution(logs: string[]) {
                 throw new Error(`Missing line number for state "${line}".`);
             }
             const value: string = parseState(code);
-            methodExecs.slice(-1)[0].addLine(lineNum, value, null, null);
+            methodExecs[methodExecs.length-1].addLine(lineNum, value, null, null);
 
         } else if (isCodeLine(code)) {
             const lineNum = getLineNum(code);
@@ -133,7 +140,7 @@ export function parseExecution(logs: string[]) {
                 throw new Error(`Missing line number for code line "${line}".`);
             }
             const tab: number = getTab(code);
-            methodExecs.slice(-1)[0].handleGroup(lineNum, tab, isGroupLine(line));
+            methodExecs[methodExecs.length-1].handleGroup(lineNum, tab, isGroupLine(line));
 
         } else if (isReturnLine(code)) {
             const lineNum = getLineNum(lineCode(lines[i-1]));
@@ -142,7 +149,7 @@ export function parseExecution(logs: string[]) {
             }
             const value = parseReturn(code);
             if (methodExecs.length >= 2) {
-                methodExecs[methodExecs.length-1].addLine(lineNum, value, methodExecs[-2].callId, true);
+                methodExecs[methodExecs.length-1].addLine(lineNum, value, methodExecs[methodExecs.length-2].callId, true);
             }
             methodExecs.pop();
         }

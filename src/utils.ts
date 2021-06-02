@@ -7,6 +7,12 @@ function isLetter(c: string) {
     return c.length === 1 && c.match(/[a-z]/i);
 }
 
-export {
-    isDigit, isLetter
+function split(s: string, c: string) {
+    return s.split(c).filter(el => {
+        return el.length > 0;
+    });
 }
+
+export {
+    isDigit, isLetter, split
+};

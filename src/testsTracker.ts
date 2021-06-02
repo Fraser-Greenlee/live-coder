@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { exec, ExecException } from 'child_process';
+import { split } from "./utils";
 
 
 export class TestsTracker {
@@ -81,7 +82,7 @@ print_suite(unittest.defaultTestLoader.discover('.'))
             const txtOutput = TestsTracker.stdout.trim();
 			if (value === 'completed') {
                 if (txtOutput) {
-                    TestsTracker.testMethods = TestsTracker.stdout.trim().split('\n');
+                    TestsTracker.testMethods = split(TestsTracker.stdout.trim(), '\n');
                     return true;
                 } else {
                     vscode.window.showErrorMessage("No tests found. Be sure to have an `__init__.py` file in your tests folder.");

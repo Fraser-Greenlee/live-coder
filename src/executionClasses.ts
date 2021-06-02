@@ -155,9 +155,9 @@ class ExecutedFunction {
                 this.setLastLine(lastLine);
                 return;
             }
-
-            this.appendLine(line);
         }
+
+        this.appendLine(line);
     }
 
     public addLine(lineNum: number, value: string, callId: string | null, isReturn: boolean | null) {
