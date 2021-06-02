@@ -457,7 +457,7 @@ function openFunctionCall(vscode, event) {
     if (functionCalls.length > 0) {
         _viewFunctionCall(vscode, callId, name, functionCalls);
     } else {
-        _openFunctionCall(vscode, callId, name);
+        vscode.postMessage({command: 'openFunctionCall', callId: callId, name: name});
     }
 }
 
@@ -465,8 +465,4 @@ function _viewFunctionCall(vscode, callId, name, functionCalls) {
     const selection = _selectFunctionCall(callId, name, functionCalls);
     _setSelection(vscode, functionCalls, selection);
     _scrollToFunction(functionCalls[selection]);
-}
-
-function _openFunctionCall(vscode, callId, name) {
-    vscode.postMessage({command: 'openFunctionCall', callId: callId, name: name});
 }

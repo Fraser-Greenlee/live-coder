@@ -42,7 +42,6 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	/*
     context.subscriptions.push(
         vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 			if (LiveValuesPanel.currentPanel && Date.now() - LiveValuesPanel.currentPanel.webviewLastScrolled > 50) {
@@ -50,7 +49,6 @@ export function activate(context: vscode.ExtensionContext) {
 			}
         })
     );
-	*/
 
 	/*
     context.subscriptions.push(

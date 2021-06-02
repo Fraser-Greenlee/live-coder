@@ -119,12 +119,9 @@ export class LogsTracker {
             const functionName = callIdToFunction[callId]['functionName'];
     
             if (!(path in selectedCallIds)) {
-                selectedCallIds[path] = {
-                    functionName: callId
-                };
-            } else if (!(functionName in selectedCallIds[path])) {
+                selectedCallIds[path] = {};
                 selectedCallIds[path][functionName] = callId;
-            } else if (!(selectedCallIds[path][functionName] in callIds)) {
+            } else {
                 selectedCallIds[path][functionName] = callId;
             }
         });

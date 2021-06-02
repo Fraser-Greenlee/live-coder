@@ -142,20 +142,18 @@ export class LiveValuesPanel {
 					case 'clearLiveValues':
 						this.testsTracker.deselect();
 						this.refreshWebview();
+					case 'selectLogsOrTest' && message.valueType === 'liveTest':
+						this.logsTracker.selectedLogFile = this._methodToLogPath(message.method);
+						this.testsTracker.runTest({method: message.method});
 					case 'selectLogsOrTest':
-						if (message.valueType === 'liveTest') {
-							this.logsTracker.selectedLogFile = this._methodToLogPath(message.method);
-							this.testsTracker.runTest({method: message.method});
-						} else {
-							this.logsTracker.selectedLogFile = message.method;
-							this.logsTracker.refresh();
-						}
+						this.logsTracker.selectedLogFile = message.method;
+						this.logsTracker.refresh();
 					case 'toggleTestOutput':
 						this._testOutputIsClosed = this._testOutputIsClosed === false;
 					case 'openFunctionCall':
-						this._openFunctionCall(message.callId, message.name);
+						this._openFunctionCall(message.callId);
 					case 'updateFunctionCallSelection':
-						this._updateFunctionCallSelection(message.callId, message.name);
+						this.selectedFunctionCallIds[this._currentFileName()][message.name] = message.callId;
 				}
 			},
 			null,
@@ -351,52 +349,6 @@ export class LiveValuesPanel {
 			</div>`;
 	}
 
-	private _hideFunctionCall(selectedCallId: string, callId: string) {
-		if (selectedCallId !== callId) {
-			return 'hide';
-		}
-		return '';
-	}
-
-	private _htmlForFunctionCall(functionName: string, callId: string, html: string, selectedCallId: string) {
-		const hide: string = this._hideFunctionCall(selectedCallId, callId);
-		return `<div class="functionCall ${hide} functionName_${functionName}" id="FunctionCall_${callId}" data-reference-id="${callId}" data-reference-name="${functionName}">${html}</div>`;
-	}
-
-	private _disabledCallSelector(numberOfCalls: number) {
-		if (numberOfCalls > 1) {
-			return '';
-		}
-		return 'disabled';
-	}
-
-	private _functionButtons(functionName: string, calls: any) {
-		const disabled: string = this._disabledCallSelector(Object.keys(calls).length);
-		let buttons: string = `<button class="functionCallButton previous ${disabled}" data-functionName="${functionName}">&lt;</button>`;
-		buttons += `<button class="functionCallButton next ${disabled}" data-functionName="${functionName}">&gt;</button>`;
-		return buttons;
-	}
-
-	private _functionCallIds(calls: any) {
-		let callIds: string[] = [];
-		Object.keys(calls).forEach(callId => {
-			callIds.push(`functionCall${callId}`);
-		});
-		return callIds.join(' ');
-	}
-
-	private _htmlForAFunction(functionInfo: any, selectedCallId: string, functionName: any) {
-		let functionCallsHTML: string[] = new Array();
-		Object.keys(functionInfo.calls).forEach(callId => {
-			functionCallsHTML.push(
-				this._htmlForFunctionCall(functionName, callId, functionInfo.calls[callId], selectedCallId)
-			);
-		});
-		const callIds: string = this._functionCallIds(functionInfo.calls);
-		const buttons: string = this._functionButtons(functionName, functionInfo.calls);
-		return `<div class="function" id="${callIds}" style="top: ${(functionInfo.startingLineNumber - 1) * 18}px">${buttons}${functionCallsHTML.join('')}</div>`;
-	}
-
 	private _currentFileName() {
 		const fullPath: string = this._currentActiveTextEditor.document.uri.path;
 		const projectRootTerms = vscode.workspace.workspaceFolders![0].uri.path;
@@ -405,16 +357,14 @@ export class LiveValuesPanel {
 		return localPathTerms.join('/');
 	}
 
-	private _openFunctionCall(callId: string, name: string) {
-		const path = `${vscode.workspace.workspaceFolders![0].name}/${this._callIdToFunction[callId][0]}`;
-		vscode.workspace.openTextDocument(path).then(doc => {
-			vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
-		}, err => {
-			console.log(err);	
-		});
-	}
-
-	private _updateFunctionCallSelection(callId: string, name: string) {
-		this.selectedFunctionCallIds[this._currentFileName()][name] = callId;
+	private _openFunctionCall(callId: string) {
+		if (vscode.workspace.workspaceFolders && callId) {
+			const path = `${vscode.workspace.workspaceFolders[0].name}/${this._callIdToFunction[callId][0]}`;
+			vscode.workspace.openTextDocument(path).then(doc => {
+				vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+			}, err => {
+				console.log(err);	
+			});
+		}
 	}
 }

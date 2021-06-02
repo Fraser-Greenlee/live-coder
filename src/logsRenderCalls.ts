@@ -1,4 +1,17 @@
+import { encode } from "he";
 import { AllFiles, File, ExecutedFunction, LineGroup, Line, FunctionLink } from "./executionClasses";
+
+
+function renderJustOneLine(line: Line) {
+    let extraClass = '';
+    let extraData = '';
+    if (line instanceof FunctionLink) {
+        extraClass = ' function_call_link';
+        extraData = ` data-reference-id="${line.callId}"`;
+    }
+
+    return `<span class="${extraClass}"${extraData}>${encode(line.value)}</span>`;
+}
 
 
 function renderLine(line: Line | Line[]) {
@@ -9,21 +22,15 @@ function renderLine(line: Line | Line[]) {
         lineNum = line[0].lineNum;
         let vals = new Array();
         for (let lne of line) {
-            vals.push(`<span>${lne.value}</span>`);
+            vals.push(renderJustOneLine(lne));
         }
         val = vals.join(', ');
     } else {
         lineNum = line.lineNum;
-        val = `<span>${line.value}</span>`;
+        val = renderJustOneLine(line);
     }
 
-    let extraClass, extraData = '';
-    if (line instanceof FunctionLink) {
-        extraClass = ' function_call_link';
-        extraData = ` data-reference-id="${line.callId}"`;
-    }
-
-    return `<div style="height:18px;" class="view-line${extraClass}" data-line_num="${lineNum}"${extraData}>${val}</div>`;
+    return `<div style="height:18px;" class="view-line" data-line_num="${lineNum}">${val}</div>`;
 }
 
 
