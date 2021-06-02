@@ -1,15 +1,14 @@
+import { lineKey } from "./config";
 import { AllFiles, ExecutedFunction } from "./executionClasses";
-
-const LINE_KEY = '4EmR7TzOvAICFVCp2wcU ';
 
 
 function isSnoopLine(line: string) {
-    return line.startsWith('INFO:root:' + LINE_KEY);
+    return line.startsWith('INFO:root:' + lineKey);
 }
 
 function lineCode(line: string) {
     // e.g. "INFO:root:4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
-    return line.substring('INFO:root:'.length + LINE_KEY.length).trim().substring('20:10:20.44 '.length);
+    return line.substring('INFO:root:'.length + lineKey.length).trim().substring('20:10:20.44 '.length);
 }
 
 function isCallLine(code: string) { 
@@ -52,7 +51,7 @@ function isGroupLine(code: string) {
 function parseMethod(callCode: string) {
     const tokens = callCode.split(' ');
     const methodName = tokens[3];
-    const lineNum = Number(tokens[-1]);
+    const lineNum = Number(tokens.slice(-1).pop());
     const path = callCode.substring(`>>> Call to ${methodName} in File "`.length, callCode.length - `", line ${lineNum}`.length);
     return {path, methodName, lineNum};
 }
@@ -79,7 +78,7 @@ function findPrevLineNum(lines: string[], i: number) {
 
         const code = lineCode(lines[c]);
         if (isCallLine(code)) {
-            lineNum = Number(code.split(' ')[-1]);
+            lineNum = Number(code.split(' ').slice(-1).pop());
         } else {
             lineNum = getLineNum(code);
         }
@@ -114,7 +113,7 @@ export function parseExecution(logs: string[]) {
             if (methodExecs.length > 0) {
                 const callToLineNum = findPrevLineNum(lines, i);
                 if (callToLineNum) {
-                    methodExecs[-1].addLine(callToLineNum, methodName, aMethodExec.callId, false);
+                    methodExecs.slice(-1)[0].addLine(callToLineNum, methodName, aMethodExec.callId, false);
                 }
             }
             methodExecs.push(aMethodExec);
@@ -125,7 +124,7 @@ export function parseExecution(logs: string[]) {
                 throw new Error(`Missing line number for state "${line}".`);
             }
             const value: string = parseState(code);
-            methodExecs[-1].addLine(lineNum, value, null, null);
+            methodExecs.slice(-1)[0].addLine(lineNum, value, null, null);
 
         } else if (isCodeLine(code)) {
             const lineNum = getLineNum(code);
@@ -133,7 +132,7 @@ export function parseExecution(logs: string[]) {
                 throw new Error(`Missing line number for code line "${line}".`);
             }
             const tab: number = getTab(code);
-            methodExecs[-1].handleGroup(lineNum, tab, isGroupLine(line));
+            methodExecs.slice(-1)[0].handleGroup(lineNum, tab, isGroupLine(line));
 
         } else if (isReturnLine(code)) {
             const lineNum = getLineNum(lineCode(lines[i-1]));
@@ -142,7 +141,7 @@ export function parseExecution(logs: string[]) {
             }
             const value = parseReturn(code);
             if (methodExecs.length >= 2) {
-                methodExecs[-1].addLine(lineNum, value, methodExecs[-2].callId, true);
+                methodExecs[methodExecs.length-1].addLine(lineNum, value, methodExecs[-2].callId, true);
             }
             methodExecs.pop();
         }

@@ -7,15 +7,14 @@ import { parseExecution } from "./logsParser";
 import { AllFiles } from "./executionClasses";
 import { renderCalls } from "./logsRenderCalls";
 import { renderFiles } from "./logsRenderFiles";
-import { logsFolder } from "./config";
-import lineReader = require("line-reader");
+import * as config from "./config";
 
 
-async function getCurrentFiles(liveCoderFolder: string) {
+async function getLogFiles(liveCoderFolder: string) {
     let logFiles: {path: string, command: string}[] = new Array();
     var files = fs.readdirSync(liveCoderFolder);
     for (const file of files) {
-        if (!file.endsWith('.txt')) {
+        if (!file.endsWith('.txt') || !file.startsWith(config.lineKey)) {
             return;
         }
 
@@ -27,7 +26,7 @@ async function getCurrentFiles(liveCoderFolder: string) {
         const it = rl[Symbol.asyncIterator]();
         const line1 = (await it.next()).value;
         if (typeof(line1) === "string") {
-            logFiles.push({path: file, command: line1});
+            logFiles.push({path: file, command: line1.substring(line1.length - 100, line1.length)});
         }
     }
     return logFiles;
@@ -36,7 +35,7 @@ async function getCurrentFiles(liveCoderFolder: string) {
 
 export class LogsTracker {
 
-    public logsFolder: string;
+    public logsPath: string;
     public selectedLogFile: string;
     public logFilesWithCommands: {path: string, command: string}[];
     public renders: {
@@ -56,15 +55,15 @@ export class LogsTracker {
     } = {};
 
 	public constructor() {
-        this.logsFolder = pathModule.join(vscode.workspace.workspaceFolders![0].uri.path, logsFolder);
+        this.logsPath = pathModule.join(vscode.workspace.workspaceFolders![0].uri.path, config.logsFolder);
         this.logFilesWithCommands = new Array();
         this.selectedLogFile = '';
 
-        if (!fs.existsSync(this.logsFolder)) {
-            fs.mkdirSync(this.logsFolder);
+        if (!fs.existsSync(this.logsPath)) {
+            fs.mkdirSync(this.logsPath);
         }
         this.refresh();
-        fs.watch(this.logsFolder, (eventType, filename) => {
+        fs.watch(this.logsPath, (eventType, filename) => {
             // could be either 'rename' or 'change'. new file event and delete
             // also generally emit 'rename'
             console.log('watch', eventType, filename);
@@ -79,7 +78,7 @@ export class LogsTracker {
     }
 
     public refresh() {
-        getCurrentFiles(this.logsFolder).then((logFiles) => {
+        getLogFiles(this.logsPath).then((logFiles) => {
             this.logFilesWithCommands = logFiles!;
             this.render();
             if (LiveValuesPanel.currentPanel) {
@@ -133,7 +132,7 @@ export class LogsTracker {
 
     public render() {
         if (this.selectedLogFile) {
-            let lines: string[] = fs.readFileSync(pathModule.join(this.logsFolder, this.selectedLogFile)).toString().split("\n");
+            let lines: string[] = fs.readFileSync(pathModule.join(this.logsPath, this.selectedLogFile)).toString().split("\n");
             const parse: AllFiles = parseExecution(lines);
             const {funcCallRender, callIdToFunction} = renderCalls(parse);
             this.selectedCallIds = this.getSelectedCallIds(this.selectedCallIds, callIdToFunction);

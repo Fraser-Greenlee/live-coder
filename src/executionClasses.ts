@@ -89,18 +89,18 @@ class ExecutedFunction {
         lineNum = this.normLineNum(lineNum);
 
         // exit groups
-        while (this.groupsStack && this.groupsStack[-1] && tab < this.groupsStack[-1].tab) {
+        while (this.groupsStack && this.groupsStack.slice(-1)[0] && tab < this.groupsStack.slice(-1)[0].tab) {
             this.groupsStack.pop();
         }
 
-        if (this.groupsStack && this.groupsStack[-1] && tab === this.groupsStack[-1].tab && lineNum !== this.groupsStack[-1].line_num) {
+        if (this.groupsStack && this.groupsStack.slice(-1)[0] && tab === this.groupsStack.slice(-1)[0].tab && lineNum !== this.groupsStack.slice(-1)[0].line_num) {
             this.groupsStack.pop();
         }
 
         // add a group
         if (isGroupLine) {
-            if (this.groupsStack && this.groupsStack[-1] && lineNum === this.groupsStack[-1].line_num) {
-                this.groupsStack[-1].start_new_group();
+            if (this.groupsStack && this.groupsStack.slice(-1)[0] && lineNum === this.groupsStack.slice(-1)[0].line_num) {
+                this.groupsStack.slice(-1)[0].start_new_group();
             } else {
                 const group = new LineGroup(lineNum, tab);
                 this.groupsStack.push(group);
@@ -110,27 +110,27 @@ class ExecutedFunction {
     }
 
     private getLastLine() {
-        if (this.groupsStack && this.groupsStack[-1]) {
-            return this.groupsStack[-1].getLastLine();
+        if (this.groupsStack && this.groupsStack.slice(-1)[0]) {
+            return this.groupsStack.slice(-1)[0].getLastLine();
         }
         if (this.lines) {
-            return this.lines[-1];
+            return this.lines.slice(-1)[0];
         }
     }
 
     private appendLine(line: Line) {
-        if (this.groupsStack && this.groupsStack[-1]) {
-            this.groupsStack[-1].addLine(line);
+        if (this.groupsStack && this.groupsStack.slice(-1)[0]) {
+            this.groupsStack.slice(-1)[0].addLine(line);
         } else {
             this.lines.push(line);
         }
     }
 
     private setLastLine(line: (Line|Line[])) {
-        if (this.groupsStack && this.groupsStack[-1]) {
-            this.groupsStack[-1].setLastLine(line);
+        if (this.groupsStack && this.groupsStack.slice(-1)[0]) {
+            this.groupsStack.slice(-1)[0].setLastLine(line);
         } else if (this.lines) {
-            this.lines[-1] = line;
+            this.lines.slice(-1)[0] = line;
         }
     }
 
@@ -194,7 +194,7 @@ class LineGroup {
     }
 
     public addLine(line: Line) {
-        this.groups[-1].push(line);
+        this.groups.slice(-1)[0].push(line);
     }
 
     public startNewGroup() {
@@ -202,14 +202,14 @@ class LineGroup {
     }
 
     public getLastLine() {
-        if (this.groups && this.groups[-1]) {
-            return this.groups[-1][-1];
+        if (this.groups && this.groups.slice(-1)[0]) {
+            return this.groups.slice(-1)[0].slice(-1)[0];
         }
     }
 
     public setLastLine(line: Line) {
-        if (this.groups && this.groups[-1]) {
-            this.groups[-1][-1] = line;
+        if (this.groups && this.groups.slice(-1)[0]) {
+            this.groups.slice(-1)[0].slice(-1)[0] = line;
         } else {
             throw new Error('No line to set.');
         }
