@@ -73,6 +73,7 @@ function findPrevLineNum(lines: string[], i: number) {
     while (lineNum === null && c > -1) {
 
         if (!isSnoopLine(lines[c])) {
+            c -= 1;
             continue;
         }
 
