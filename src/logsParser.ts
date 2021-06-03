@@ -9,7 +9,7 @@ function isSnoopLine(line: string) {
 
 function lineCode(line: string) {
     // e.g. "4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
-    return line.substring(lineKey.length).trim().substring('20:10:20.44 '.length);
+    return line.substring(lineKey.length).trim().substring('20:10:20.44 '.length).trim();
 }
 
 function isCallLine(code: string) { 
@@ -46,7 +46,7 @@ function parseReturn(code: string) {
 
 function isGroupLine(code: string) {
     const tokens = split(code, ' ');
-    return tokens.length > 4 && ['for', 'while'].indexOf(tokens[3]) > -1;
+    return tokens.length > 2 && ['for', 'while'].indexOf(tokens[2]) > -1;
 }
 
 function parseMethod(callCode: string) {
@@ -140,7 +140,7 @@ export function parseExecution(logs: string[]) {
                 throw new Error(`Missing line number for code line "${line}".`);
             }
             const tab: number = getTab(code);
-            methodExecs[methodExecs.length-1].handleGroup(lineNum, tab, isGroupLine(line));
+            methodExecs[methodExecs.length-1].handleGroup(lineNum, tab, isGroupLine(code));
 
         } else if (isReturnLine(code)) {
             const lineNum = getLineNum(lineCode(lines[i-1]));

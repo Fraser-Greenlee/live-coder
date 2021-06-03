@@ -277,26 +277,6 @@ export class LiveValuesPanel {
             </html>`;
 	}
 
-	private _validCallId(callsToValues: any, selectedCallId: string|undefined) {
-		if (selectedCallId) {
-			return selectedCallId in callsToValues;
-		}
-		return false;
-	}
-
-	private _firstFunctionCall(callsToValues: any) {
-		const calls: string[] = Object.keys(callsToValues);
-		calls.sort();
-		return calls[0];
-	}
-
-	private _selectedCallIdForFunction(callsToValues: any, selected: string|undefined) {
-		if (!this._validCallId(callsToValues, selected)) {
-			return this._firstFunctionCall(callsToValues);
-		}
-		return selected;
-	}
-
 	private _liveValuesErrorMessage(title: string, body: string) {
 		return `
 			<div class="centre">

@@ -71,7 +71,7 @@ class ExecutedFunction {
     public nthCall: number;
     public callId: string;
     public lines: (LineGroup|Line|Line[])[];
-    public groupsStack: any[];
+    public groupsStack: LineGroup[];
 
     constructor(method: aFunction, nthCall: number) {
         this.method = method;
@@ -93,14 +93,14 @@ class ExecutedFunction {
             this.groupsStack.pop();
         }
 
-        if (this.groupsStack && this.groupsStack.slice(-1)[0] && tab === this.groupsStack.slice(-1)[0].tab && lineNum !== this.groupsStack.slice(-1)[0].line_num) {
+        if (this.groupsStack && this.groupsStack.slice(-1)[0] && tab === this.groupsStack.slice(-1)[0].tab && lineNum !== this.groupsStack.slice(-1)[0].lineNum) {
             this.groupsStack.pop();
         }
 
         // add a group
         if (isGroupLine) {
-            if (this.groupsStack && this.groupsStack.slice(-1)[0] && lineNum === this.groupsStack.slice(-1)[0].line_num) {
-                this.groupsStack.slice(-1)[0].start_new_group();
+            if (this.groupsStack && this.groupsStack.slice(-1)[0] && lineNum === this.groupsStack.slice(-1)[0].lineNum) {
+                this.groupsStack[this.groupsStack.length-1].startNewGroup();
             } else {
                 const group = new LineGroup(lineNum, tab);
                 this.groupsStack.push(group);
@@ -110,17 +110,21 @@ class ExecutedFunction {
     }
 
     private getLastLine() {
-        if (this.groupsStack && this.groupsStack.slice(-1)[0]) {
-            return this.groupsStack.slice(-1)[0].getLastLine();
+        if (this.groupsStack && this.groupsStack[this.groupsStack.length-1]) {
+            return this.groupsStack[this.groupsStack.length-1].getLastLine();
         }
         if (this.lines) {
-            return this.lines.slice(-1)[0];
+            let result: (Line | Line[] | LineGroup | undefined) = this.lines[this.lines.length-1];
+            while (result instanceof LineGroup) {
+                result = result.getLastLine();
+            }
+            return result;
         }
     }
 
     private appendLine(line: Line) {
-        if (this.groupsStack && this.groupsStack.slice(-1)[0]) {
-            this.groupsStack.slice(-1)[0].addLine(line);
+        if (this.groupsStack && this.groupsStack[this.groupsStack.length-1]) {
+            this.groupsStack[this.groupsStack.length-1].addLine(line);
         } else {
             this.lines.push(line);
         }
@@ -135,7 +139,7 @@ class ExecutedFunction {
     }
 
     private _addLine(lineNum: number, line: (FunctionLink | Line)) {
-        let lastLine: (Line| Line[]) = this.getLastLine();
+        let lastLine: (Line| Line[] | undefined) = this.getLastLine();
 
         if (lastLine) {
 
@@ -181,7 +185,7 @@ class LineGroup {
     */
     public lineNum: number;
     public tab: number;
-    public groups: (LineGroup|Line)[][];
+    public groups: (LineGroup|Line|Line[])[][];
 
     constructor(lineNum: number, tab: number) {
         this.lineNum = lineNum;
@@ -190,21 +194,25 @@ class LineGroup {
         this.groups.push(new Array());
     }
 
-    public addLine(line: Line) {
-        this.groups.slice(-1)[0].push(line);
+    public addLine(line: LineGroup | Line) {
+        this.groups[this.groups.length-1].push(line);
     }
 
     public startNewGroup() {
         this.groups.push([]);
     }
 
-    public getLastLine() {
-        if (this.groups && this.groups.slice(-1)[0]) {
-            return this.groups.slice(-1)[0].slice(-1)[0];
+    public getLastLine() : (Line | Line[] | undefined) {
+        if (this.groups && this.groups[this.groups.length-1]) {
+            const lastLine = this.groups[this.groups.length-1][this.groups.length-1];
+            if (lastLine instanceof LineGroup) {
+                return lastLine.getLastLine();   
+            }
+            return lastLine;
         }
     }
 
-    public setLastLine(line: Line) {
+    public setLastLine(line: (Line|Line[])) {
         if (this.groups && this.groups.slice(-1)[0]) {
             this.groups[this.groups.length-1][this.groups.length-1] = line;
         } else {
