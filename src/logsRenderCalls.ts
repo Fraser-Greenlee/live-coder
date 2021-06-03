@@ -113,42 +113,14 @@ function renderFunctionCalls(parse: AllFiles) {
 }
 
 
-function getCallsIdToFunction(
-    funcCallRender: { [path: string]: {
-        [func: string]: {
-            startingLineNumber: number
-            calls: {[callId: string]: string}
-        }
-    } }
-) {
-    let callIdToFunciton: {
-        [callId: string]: {
-            [pathOrFunctionName: string]: string
-        }
-    } = {};
-    for (let path in funcCallRender) {
-        for (let functionName in funcCallRender[path]) {
-            for (let callId in funcCallRender[path][functionName]['calls']) {
-                callIdToFunciton[callId] = {
-                    'path': path,
-                    'functionName': functionName
-                };
+export function renderCalls(parse: AllFiles) {
+    const funcCallRender: {
+        [path: string]: {
+            [func: string]: {
+                startingLineNumber: number
+                calls: {[callId: string]: string}
             }
         }
-    }
-    return callIdToFunciton;
-}
-
-
-export function renderCalls(parse: AllFiles) {
-    const funcCallRender: { [path: string]: {
-        [func: string]: {
-            startingLineNumber: number
-            calls: {[callId: string]: string}
-        }
-    } } = renderFunctionCalls(parse);
-    return {
-        'funcCallRender': funcCallRender,
-        'callIdToFunction': getCallsIdToFunction(funcCallRender),
-    };
+    } = renderFunctionCalls(parse);
+    return funcCallRender;
 }

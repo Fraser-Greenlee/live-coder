@@ -49,11 +49,6 @@ export class LogsTracker {
             [func: string]: string
         }
     } = {};
-    public callIdToFunction: {
-        [callId: string]: {
-            [pathOrFunctionName: string]: string
-        }
-    } = {};
 
 	public constructor() {
         this.logsPath = pathModule.join(vscode.workspace.workspaceFolders![0].uri.path, config.logsFolder);
@@ -75,7 +70,13 @@ export class LogsTracker {
 	}
 
     public noneSelected() {
+        this.selectedCallIds = {};
         return this.selectedLogFile === '';
+    }
+
+    public changeLogFile(path: string) {
+        this.selectedCallIds = {};
+        this.selectedLogFile = path;
     }
 
     public refresh() {
@@ -108,23 +109,28 @@ export class LogsTracker {
         }
     }
 
-    private getSelectedCallIds(
+    private updateCallIds(
         selectedCallIds: { [path: string]:  {[func: string]: string} },
-        callIdToFunction: { [callId: string]: {[pathOrFunctionName: string]: string} }
+        funcCallRender: {
+            [path: string]: {
+                [func: string]: {
+                    startingLineNumber: number
+                    calls: {[callId: string]: string}
+                }
+            }
+        }
     ) {
-        const callIds: string[] = Object.keys(callIdToFunction);
-        callIds.sort();
-        callIds.forEach(callId => {
-            const path = callIdToFunction[callId]['path'];
-            const functionName = callIdToFunction[callId]['functionName'];
-    
+        selectedCallIds = {};
+        for (let path in funcCallRender) {
             if (!(path in selectedCallIds)) {
                 selectedCallIds[path] = {};
-                selectedCallIds[path][functionName] = callId;
-            } else {
-                selectedCallIds[path][functionName] = callId;
             }
-        });
+            for (let functionName in funcCallRender[path]) {
+                if (!(functionName in selectedCallIds[path]) || !(selectedCallIds[path][functionName] in funcCallRender[path][functionName]['calls'])) {
+                    selectedCallIds[path][functionName] = funcCallRender[path][functionName]['calls'][0];
+                }
+            }
+        }
         return selectedCallIds;
     }    
 
@@ -135,9 +141,8 @@ export class LogsTracker {
                 "\n"
             );
             const parse: AllFiles = parseExecution(lines);
-            const {funcCallRender, callIdToFunction} = renderCalls(parse);
-            this.selectedCallIds = this.getSelectedCallIds(this.selectedCallIds, callIdToFunction);
-            this.callIdToFunction = callIdToFunction;
+            const funcCallRender = renderCalls(parse);
+            this.selectedCallIds = this.updateCallIds(this.selectedCallIds, funcCallRender);
             this.renders[this.selectedLogFile] = renderFiles(funcCallRender, this.selectedCallIds);
         }
     }

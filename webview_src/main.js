@@ -370,7 +370,7 @@ function _setSelection(vscode, functionCalls, selectedIndex) {
                 call.classList.remove("hide");
             }
             const [name, callId] = _callData(call);
-            _tellExtension(vscode, callId, name);
+            _tellExtension(vscode, callId);
         } else {
             if (!(call.classList.contains('hide'))) {
                 call.classList.add("hide");
@@ -379,8 +379,8 @@ function _setSelection(vscode, functionCalls, selectedIndex) {
     }
 }
 
-function _tellExtension(vscode, callId, name) {
-    vscode.postMessage({command: 'updateFunctionCallSelection', callId: callId, name: name});
+function _tellExtension(vscode, callId) {
+    vscode.postMessage({command: 'updateFunctionCallSelection', callId: callId});
 }
 
 function _inc(num, max) {

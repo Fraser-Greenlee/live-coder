@@ -27,7 +27,6 @@ export class LiveValuesPanel {
 	public testSelect: TestSelect;
 	public selectedFunctionCallIds: any = {};
 
-	private _liveValues: any = {};
 	private _testOutputIsClosed: boolean = true;
 	public webviewLastScrolled: number = Date.now();
 
@@ -140,17 +139,18 @@ export class LiveValuesPanel {
 						this.testsTracker.deselect();
 						this.refreshWebview();
 					case 'selectLogsOrTest' && message.valueType === 'liveTest':
-						this.logsTracker.selectedLogFile = this._methodToLogPath(message.method);
+						this.logsTracker.changeLogFile(this._methodToLogPath(message.method));
 						this.testsTracker.runTest({method: message.method});
 					case 'selectLogsOrTest':
-						this.logsTracker.selectedLogFile = message.method;
+						// not liveTest so must be log file
+						this.logsTracker.changeLogFile(message.method);
 						this.logsTracker.refresh();
 					case 'toggleTestOutput':
 						this._testOutputIsClosed = this._testOutputIsClosed === false;
 					case 'openFunctionCall':
 						this._openFunctionCall(message.callId);
 					case 'updateFunctionCallSelection':
-						this.selectedFunctionCallIds[this._currentFileName()][message.name] = message.callId;
+						this.logsTracker.selectedCallIds[message.callId.split(':')[0], message.callId.split(':')[1]] = message.callId; 
 				}
 			},
 			null,
@@ -277,14 +277,6 @@ export class LiveValuesPanel {
             </html>`;
 	}
 
-	private _callIdsForFile(filePath: string) {
-		const selectedCallIds = this.selectedFunctionCallIds[filePath];
-		if (selectedCallIds === undefined) {
-			return {};
-		}
-		return selectedCallIds;
-	}
-
 	private _validCallId(callsToValues: any, selectedCallId: string|undefined) {
 		if (selectedCallId) {
 			return selectedCallId in callsToValues;
@@ -303,24 +295,6 @@ export class LiveValuesPanel {
 			return this._firstFunctionCall(callsToValues);
 		}
 		return selected;
-	}
-
-	private _selectedCallIdsForFile(filePath: string) {
-		const fileFunctions = this._liveValues[filePath];
-		let selectedCallIds = this._callIdsForFile(filePath);
-		Object.keys(fileFunctions).forEach(functionName => {
-			selectedCallIds[functionName] = this._selectedCallIdForFunction(
-				fileFunctions[functionName]['calls'], selectedCallIds[functionName]
-			);
-		});
-		return selectedCallIds;
-	}
-
-	private _getSelectedFunctionCallIds() {
-		Object.keys(this._liveValues).forEach(filePath => {
-			this.selectedFunctionCallIds[filePath] = this._selectedCallIdsForFile(filePath);
-		});
-		return this.selectedFunctionCallIds;
 	}
 
 	private _liveValuesErrorMessage(title: string, body: string) {
@@ -344,14 +318,6 @@ export class LiveValuesPanel {
 					</div>
 				</div>
 			</div>`;
-	}
-
-	private _currentFileName() {
-		const fullPath: string = this._currentActiveTextEditor.document.uri.path;
-		const projectRootTerms = vscode.workspace.workspaceFolders![0].uri.path;
-		const pathTerms = split(fullPath, '/');
-		const localPathTerms = pathTerms.slice(projectRootTerms.length);
-		return localPathTerms.join('/');
 	}
 
 	private _openFunctionCall(callId: string) {
