@@ -56,7 +56,7 @@ button {
   background: var(--vscode-button-background);
 }
 
-button:hover {
+button:hover:not(.disabled) {
   cursor: pointer;
   background: var(--vscode-button-hoverBackground);
 }

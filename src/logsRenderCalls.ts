@@ -6,7 +6,7 @@ function renderJustOneLine(line: Line) {
     let extraClass = '';
     let extraData = '';
     if (line instanceof FunctionLink) {
-        extraClass = ' function_call_link';
+        extraClass = 'function_call_link';
         extraData = ` data-reference-id="${line.callId}"`;
     }
 

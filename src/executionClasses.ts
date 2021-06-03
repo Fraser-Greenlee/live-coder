@@ -130,7 +130,7 @@ class ExecutedFunction {
         if (this.groupsStack && this.groupsStack.slice(-1)[0]) {
             this.groupsStack.slice(-1)[0].setLastLine(line);
         } else if (this.lines) {
-            this.lines.slice(-1)[0] = line;
+            this.lines[this.lines.length-1] = line;
         }
     }
 
@@ -206,7 +206,7 @@ class LineGroup {
 
     public setLastLine(line: Line) {
         if (this.groups && this.groups.slice(-1)[0]) {
-            this.groups.slice(-1)[0].slice(-1)[0] = line;
+            this.groups[this.groups.length-1][this.groups.length-1] = line;
         } else {
             throw new Error('No line to set.');
         }
