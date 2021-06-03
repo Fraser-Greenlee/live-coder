@@ -1,10 +1,8 @@
 import * as vscode from "vscode";
-import * as pathModule from "path";
 import { getNonce } from "./getNonce";
 import { LogsTracker as logsTracker } from "./logsTracker";
 import { TestsTracker } from "./testsTracker";
 import { TestSelect } from "./testSelect";
-import { logsFolder } from "./config";
 import { isDigit, isLetter, split } from "./utils";
 
 export class LiveValuesPanel {
@@ -30,7 +28,6 @@ export class LiveValuesPanel {
 	public selectedFunctionCallIds: any = {};
 
 	private _liveValues: any = {};
-	private _callIdToFunction: any = {};
 	private _testOutputIsClosed: boolean = true;
 	public webviewLastScrolled: number = Date.now();
 
@@ -359,8 +356,8 @@ export class LiveValuesPanel {
 
 	private _openFunctionCall(callId: string) {
 		if (vscode.workspace.workspaceFolders && callId) {
-			const path = `${vscode.workspace.workspaceFolders[0].name}/${this._callIdToFunction[callId][0]}`;
-			vscode.workspace.openTextDocument(path).then(doc => {
+			const callScript = callId.split(':')[0];
+			vscode.workspace.openTextDocument(callScript).then(doc => {
 				vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 			}, err => {
 				console.log(err);	
