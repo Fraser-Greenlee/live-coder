@@ -89,6 +89,9 @@ function handlefunctionCallButtons(vscode) {
     var buttons = document.getElementsByClassName('functionCallButton');
     for (let i = 0; i < buttons.length; i++) {
         var button = buttons[i];
+        if (button.classList.contains('disabled')) {
+            continue;
+        }
         if (button.classList.contains('previous')) {
             button.addEventListener(
                 'click',
