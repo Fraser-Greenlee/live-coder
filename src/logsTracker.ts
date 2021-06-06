@@ -135,6 +135,7 @@ export class LogsTracker {
     }    
 
     public render() {
+        // TODO bug before here
         if (this.selectedLogFile) {
             let lines: string[] = split(
                 fs.readFileSync(pathModule.join(this.logsPath, this.selectedLogFile)).toString(),

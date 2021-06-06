@@ -140,10 +140,6 @@ function _scrollToLineNo(scroll) {
     return Math.floor(scroll/18);
 }
 
-function _messageRevealLine(vscode) {
-    vscode.postMessage({command: 'revealLine', line: _scrollToLineNo(currentScroll)});
-}
-
 function handleScrolling(vscode) {
     var liveValues = document.getElementById('scrollableLiveValues');
     liveValues.addEventListener(
@@ -152,7 +148,7 @@ function handleScrolling(vscode) {
             if (_notScrollingEditor()) {
                 currentScroll = liveValues.scrollTop;
                 lastScrolledWebview = Date.now();
-                _messageRevealLine(vscode);
+                vscode.postMessage({command: 'revealLine', line: _scrollToLineNo(currentScroll)});
                 _setMarginTop(liveValues, currentScroll);
             }
         }, 10)
@@ -303,51 +299,12 @@ function _pickedNull(selectId) {
 function _messageRunTestMethod(vscode) {
     const methodPicker = document.getElementById("testPicker");
     const valueType = methodPicker.options[methodPicker.selectedIndex].getAttribute("data-field_type");
+    console.log('_messageRunTestMethod', {command: 'selectLogsOrTest', method: methodPicker.value, valueType: valueType});
     vscode.postMessage({
         command: 'selectLogsOrTest',
         method: methodPicker.value,
         valueType: valueType
     });
-}
-
-function _selectedOption(selectId) {
-    var select = document.getElementById(selectId);
-    return select.options[select.selectedIndex];
-}
-
-function _listData(element, name) {
-    return element.dataset[name].split(',');
-}
-
-function _defaultTestMethods() {
-    var methodPicker = document.getElementById("testPicker");
-    removeOptions(methodPicker);
-    methodPicker.appendChild(newOption("", "No Test Methods"));
-    methodPicker.value = "";
-}
-
-function newTestMethods(methodNames, methodIds) {
-    var methodPicker = document.getElementById("testPicker");
-    removeOptions(methodPicker);
-    for (i = 0; i < methodNames.length; i++) {
-        methodPicker.appendChild(
-            newOption(methodIds[i], methodNames[i])
-        );
-    }
-    methodPicker.value = methodIds[0];
-}
-
-function newOption(value, text) {
-    var opt = document.createElement('option');
-    opt.value = value;
-    opt.text = text;
-    return opt;
-}
-
-function removeOptions(select) {
-    for (i = select.options.length-1; i > -1; i--) {
-        select.options.remove(i);
-    }
 }
 
 ///////////// Function Call Selector
@@ -370,17 +327,14 @@ function _setSelection(vscode, functionCalls, selectedIndex) {
                 call.classList.remove("hide");
             }
             const [name, callId] = _callData(call);
-            _tellExtension(vscode, callId);
+            console.log('postMessage', {command: 'updateFunctionCallSelection', callId: callId});
+            vscode.postMessage({command: 'updateFunctionCallSelection', callId: callId});
         } else {
             if (!(call.classList.contains('hide'))) {
                 call.classList.add("hide");
             }
         }
     }
-}
-
-function _tellExtension(vscode, callId) {
-    vscode.postMessage({command: 'updateFunctionCallSelection', callId: callId});
 }
 
 function _inc(num, max) {
@@ -455,6 +409,7 @@ function _scrollToFunction(node) {
 }
 
 function openFunctionCall(vscode, event) {
+    console.log("openFunctionCall");
     const [name, callId] = _callData(event.currentTarget);
     const functionCalls = document.getElementsByClassName("functionName_" + name);
     if (functionCalls.length > 0) {

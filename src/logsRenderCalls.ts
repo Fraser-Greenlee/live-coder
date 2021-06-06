@@ -1,4 +1,5 @@
 import { encode } from "he";
+import { maxLoopSteps } from "./config";
 import { AllFiles, File, ExecutedFunction, LineGroup, Line, FunctionLink } from "./executionClasses";
 
 
@@ -14,7 +15,7 @@ function renderJustOneLine(line: Line) {
 }
 
 
-function renderLine(line: Line | Line[]) {
+function renderLine(line: Line | Line[], prevLineNum: number) {
     let lineNum: number;
     let val: string;
 
@@ -30,39 +31,54 @@ function renderLine(line: Line | Line[]) {
         val = renderJustOneLine(line);
     }
 
-    return `<div style="height:18px;" class="view-line" data-line_num="${lineNum}">${val}</div>`;
+    return {
+        lineHTML: `<div style="height:18px;margin-top:${18*(lineNum - prevLineNum)}px" class="view-line" data-line_num="${lineNum}">${val}</div>`,
+        lastLineNum: lineNum
+    };
 }
 
 
-function renderLineGroup(group: LineGroup) {
+
+function renderLineGroup(group: LineGroup, prevLineNum: number) {
     let htmlIterations: string[] = new Array();
     for (let groupLines of group.groups) {
 
         let renderedLines: string[] = new Array();
         for (let line of groupLines) {
-            renderedLines.push(renderAnyLine(line));
+            const {lineHTML, lastLineNum} = renderAnyLine(line, prevLineNum);
+            prevLineNum = lastLineNum;
+            renderedLines.push(lineHTML);
         }
 
         htmlIterations.push(
             `<div class="iteration">${renderedLines.join('')}</div>`
         );
     }
-    return `<div class="loop">${htmlIterations.join('')}</div>`;
+    return {
+        lineHTML: `<div class="loop">${htmlIterations.slice(0, maxLoopSteps).join('')}</div>`,
+        lastLineNum: prevLineNum
+    };
 }
 
 
-function renderAnyLine(line: LineGroup | Line | Line[]) {
+function renderAnyLine(line: LineGroup | Line | Line[], prevLineNum: number) {
     if (line instanceof LineGroup) {
-        return renderLineGroup(line);
+        return renderLineGroup(line, prevLineNum);
     }
-    return renderLine(line);
+    return renderLine(line, prevLineNum);
 }
 
 
 function renderCall(call: ExecutedFunction) {
+    if (call.callId === '/Users/Fraser/projects/active/basic-python/basic/main.py:fizzbuzz:0') {
+        const z = 1;
+    }
     let html = '';
+    let prevLineNum = 0;
     for (let line of call.lines) {
-        html += renderAnyLine(line);
+        const {lineHTML, lastLineNum} = renderAnyLine(line, prevLineNum);
+        html += lineHTML;
+        prevLineNum = lastLineNum;
     }
     return html;
 }

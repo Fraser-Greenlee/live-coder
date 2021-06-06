@@ -132,25 +132,24 @@ export class LiveValuesPanel {
 	private _addWebviewMessageHandlers() {
 		this._panel.webview.onDidReceiveMessage(
 			message => {
-				switch (message.command) {
-					case 'revealLine':
-                    	this._scrollToLine(message.line);
-					case 'clearLiveValues':
-						this.testsTracker.deselect();
-						this.refreshWebview();
-					case 'selectLogsOrTest' && message.valueType === 'liveTest':
-						this.logsTracker.changeLogFile(this._methodToLogPath(message.method));
-						this.testsTracker.runTest({method: message.method});
-					case 'selectLogsOrTest':
-						// not liveTest so must be log file
-						this.logsTracker.changeLogFile(message.method);
-						this.logsTracker.refresh();
-					case 'toggleTestOutput':
-						this._testOutputIsClosed = this._testOutputIsClosed === false;
-					case 'openFunctionCall':
-						this._openFunctionCall(message.callId);
-					case 'updateFunctionCallSelection':
-						this.logsTracker.selectedCallIds[message.callId.split(':')[0], message.callId.split(':')[1]] = message.callId; 
+				const cmd = message.command;
+				if        (cmd === 'revealLine') {
+					this._scrollToLine(message.line);
+				} else if (cmd === 'clearLiveValues') {
+					this.testsTracker.deselect();
+					this.refreshWebview();
+				} else if (cmd === 'selectLogsOrTest' && message.valueType === 'liveTest') {
+					this.logsTracker.changeLogFile(this._methodToLogPath(message.method));
+					this.testsTracker.runTest({method: message.method});
+				} else if (cmd === 'selectLogsOrTest') { // not liveTest so must be log file
+					this.logsTracker.changeLogFile(message.method);
+					this.logsTracker.refresh();
+				} else if (cmd === 'toggleTestOutput') {
+					this._testOutputIsClosed = this._testOutputIsClosed === false;
+				} else if (cmd === 'openFunctionCall') {
+					this._openFunctionCall(message.callId);
+				} else if (cmd === 'updateFunctionCallSelection') {
+					this.logsTracker.selectedCallIds[message.callId.split(':')[0], message.callId.split(':')[1]] = message.callId; 
 				}
 			},
 			null,

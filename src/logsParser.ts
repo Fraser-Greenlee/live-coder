@@ -49,12 +49,12 @@ function isGroupLine(code: string) {
     return tokens.length > 2 && ['for', 'while'].indexOf(tokens[2]) > -1;
 }
 
-function parseMethod(callCode: string) {
-    const tokens = split(callCode, ' ');
+function parseMethod(code: string) {
+    const tokens = split(code, ' ');
     const methodName = tokens[3];
-    const lineNum = Number(tokens.slice(-1).pop());
-    const path = callCode.substring(`>>> Call to ${methodName} in File "`.length, callCode.length - `", line ${lineNum}`.length);
-    return {path, methodName, lineNum};
+    const lineNumTo = Number(tokens.slice(-1).pop());
+    const path = code.substring(`>>> Call to ${methodName} in File "`.length, code.length - `", line ${lineNumTo}`.length);
+    return {path, methodName, lineNumTo};
 }
 
 function getLineNum(line: string) {
@@ -110,19 +110,22 @@ export function parseExecution(logs: string[]) {
         const code = lineCode(line);
 
         if (isCallLine(code)) {
-            const {path, methodName, lineNum} = parseMethod(code);
-            if (!lineNum) {
-                throw new Error(`Missing line number for method "${line}".`);
+            const {path, methodName, lineNumTo} = parseMethod(code);
+
+            if (!lineNumTo) {
+                throw new Error(`Missing line number (called to) for method "${line}".`);
             }
+
             const file = allFiles.getFile(path as string);
-            const method = file.getMethod(methodName as string, lineNum as number);
+            const method = file.getMethod(methodName as string, lineNumTo as number);
             const aMethodExec = method.getExec({});
 
             if (methodExecs.length > 0) {
-                const callToLineNum = findPrevLineNum(lines, i);
-                if (callToLineNum) {
-                    methodExecs[methodExecs.length-1].addLine(callToLineNum, methodName, aMethodExec.callId, false);
+                const lineNumFrom = findPrevLineNum(lines, i);
+                if (!lineNumFrom) {
+                    throw new Error(`Missing line number (called from) for method "${line}".`);
                 }
+                methodExecs[methodExecs.length-1].addLine(lineNumFrom, methodName, aMethodExec.callId, false);
             }
             methodExecs.push(aMethodExec);
 
