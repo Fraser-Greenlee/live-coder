@@ -50,7 +50,6 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-	/*
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(() => {
             if (_newFileCouldHaveLiveValues()) {
@@ -58,9 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
 	);
-	*/
 
-	/*
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument(() => {
             if (LiveValuesPanel.currentPanel && vscode.window.activeTextEditor && !LiveValuesPanel.currentPanel.testsTracker.noneSelected()) {
@@ -68,7 +65,6 @@ export function activate(context: vscode.ExtensionContext) {
             }
         })
 	);
-	*/
 }
 
 // this method is called when your extension is deactivated

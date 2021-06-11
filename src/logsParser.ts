@@ -146,13 +146,15 @@ export function parseExecution(logs: string[]) {
             methodExecs[methodExecs.length-1].handleGroup(lineNum, tab, isGroupLine(code));
 
         } else if (isReturnLine(code)) {
-            const lineNum = getLineNum(lineCode(lines[i-1]));
+            const value = parseReturn(code);
+            const lineNum = findPrevLineNum(lines, i);
             if (!lineNum) {
                 throw new Error(`Missing line number for return line "${line}".`);
             }
-            const value = parseReturn(code);
             if (methodExecs.length >= 2) {
                 methodExecs[methodExecs.length-1].addLine(lineNum, value, methodExecs[methodExecs.length-2].callId, true);
+            } else {
+                methodExecs[methodExecs.length-1].addLine(lineNum, value, null, null);
             }
             methodExecs.pop();
         }

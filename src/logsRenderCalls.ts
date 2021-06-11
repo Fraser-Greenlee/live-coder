@@ -1,4 +1,4 @@
-import { encode } from "he";
+const hljs = require('highlight.js');
 import { maxLoopSteps } from "./config";
 import { AllFiles, File, ExecutedFunction, LineGroup, Line, FunctionLink } from "./executionClasses";
 
@@ -10,8 +10,8 @@ function renderJustOneLine(line: Line) {
         extraClass = 'function_call_link';
         extraData = ` data-reference-id="${line.callId}"`;
     }
-
-    return `<span class="${extraClass}"${extraData}>${encode(line.value)}</span>`;
+    const highlight = hljs.highlight(line.value, {language: 'python'}).value;
+    return `<span class="${extraClass}"${extraData}>${highlight}</span>`;
 }
 
 
@@ -30,9 +30,8 @@ function renderLine(line: Line | Line[], prevLineNum: number) {
         lineNum = line.lineNum;
         val = renderJustOneLine(line);
     }
-
     return {
-        lineHTML: `<div style="height:18px;margin-top:${18*(lineNum - prevLineNum)}px" class="view-line" data-line_num="${lineNum}">${val}</div>`,
+        lineHTML: `<div style="height:18px;margin-top:${18*Math.max(0, lineNum - prevLineNum - 1)}px" class="view-line" data-line_num="${lineNum}">${val}</div>`,
         lastLineNum: lineNum
     };
 }

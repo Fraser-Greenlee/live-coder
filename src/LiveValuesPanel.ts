@@ -124,9 +124,18 @@ export class LiveValuesPanel {
 		return parts.join('');
 	}
 
-	private _methodToLogPath(method: string) {
-		method = split(method, ' ').join(' ');
-		return this._sanitize(method).substring(0, 255) + '.txt';
+	private _methodToLogFileName(method: string) {
+		let methodParts = split(method, ' ');
+		for (let i = 0; i < methodParts.length; i++) {
+			let el = methodParts[i];
+			if (el.length > 30) {
+				methodParts[i] = el.substring(el.length - 30, el.length);
+			}
+		}
+		let fileName = methodParts.join(' ');
+		fileName = this._sanitize(fileName);
+		fileName = fileName.substring(fileName.length - 75, fileName.length);
+		return fileName + '.txt';
 	}
 
 	private _addWebviewMessageHandlers() {
@@ -139,7 +148,9 @@ export class LiveValuesPanel {
 					this.testsTracker.deselect();
 					this.refreshWebview();
 				} else if (cmd === 'selectLogsOrTest' && message.valueType === 'liveTest') {
-					this.logsTracker.changeLogFile(this._methodToLogPath(message.method));
+					const logFileName = this._methodToLogFileName('python -m unittest ' + message.method);
+					this.logsTracker.changeLogFile(logFileName);
+					console.log('Log file?', logFileName);
 					this.testsTracker.runTest({method: message.method});
 				} else if (cmd === 'selectLogsOrTest') { // not liveTest so must be log file
 					this.logsTracker.changeLogFile(message.method);

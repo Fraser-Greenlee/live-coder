@@ -15,7 +15,7 @@ async function getLogFiles(liveCoderFolder: string) {
     let logFiles: {path: string, command: string}[] = new Array();
     var files = fs.readdirSync(liveCoderFolder);
     for (const file of files) {
-        if (!file.endsWith('.txt') || !file.startsWith(config.lineKey)) {
+        if (!file.endsWith('.txt')) {
             return;
         }
 
@@ -26,7 +26,8 @@ async function getLogFiles(liveCoderFolder: string) {
 
         const it = rl[Symbol.asyncIterator]();
         const line1 = (await it.next()).value;
-        if (typeof(line1) === "string") {
+        const line2 = (await it.next()).value;
+        if (typeof(line1) === "string" && typeof(line2) === "string" && line2) {
             logFiles.push({path: file, command: line1.substring(line1.length - 100, line1.length)});
         }
     }

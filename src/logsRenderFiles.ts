@@ -49,7 +49,7 @@ function htmlForAFunction(
     });
     const callIds: string = functionCallIds(functionInfo.calls);
     const buttons: string = functionButtons(functionName, functionInfo.calls);
-    return `<div class="function" id="${callIds}" style="top: ${(functionInfo.startingLineNumber - 1) * 18}px">${buttons}${functionCallsHTML.join('')}</div>`;
+    return `<div class="function" id="${callIds}" style="top: ${(functionInfo.startingLineNumber - 2) * 18}px">${buttons}${functionCallsHTML.join('')}</div>`;
 }
 
 function htmlForFunctions(

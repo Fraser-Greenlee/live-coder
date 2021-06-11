@@ -20,6 +20,9 @@ export class TestSelect {
     }
     
     private _getPreviousRunsOptions() {
+        if (!this.logsTracker.logFilesWithCommands) {
+            return '';
+        }
         const numLogFiles = this.logsTracker.logFilesWithCommands.length;
         let options: string[] = new Array(numLogFiles);
         for (let i = 0; i < numLogFiles; i++) {
