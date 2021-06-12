@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.window.onDidChangeTextEditorVisibleRanges(event => {
-			if (LiveValuesPanel.currentPanel && Date.now() - LiveValuesPanel.currentPanel.webviewLastScrolled > 50) {
+			if (LiveValuesPanel.currentPanel) { //  && Date.now() - LiveValuesPanel.currentPanel.webviewLastScrolled > 50
 				LiveValuesPanel.currentPanel.scrollPanel(event.textEditor);
 			}
         })

@@ -168,10 +168,6 @@ export class LiveValuesPanel {
 		);
 	}
 
-	public scrollWebview(yPosition: number) {
-		this._panel.webview.postMessage({ command: 'editorScroll', scroll: yPosition });
-	}
-
 	public dispose() {
 		LiveValuesPanel.currentPanel = undefined;
 
@@ -185,13 +181,6 @@ export class LiveValuesPanel {
 		}
 	}
 
-    public scrollPanel(textEditor: vscode.TextEditor) {
-        const line = this.getScrollPosition(textEditor);
-        if (typeof line === 'number' && LiveValuesPanel.currentPanel) {
-            LiveValuesPanel.currentPanel.scrollWebview(line);
-        }
-    }
-
     private getScrollPosition(editor: vscode.TextEditor): number | undefined {
         if (!editor.visibleRanges.length) {
             return undefined;
@@ -202,6 +191,13 @@ export class LiveValuesPanel {
         const line = editor.document.lineAt(lineNumber);
         const progress = firstVisiblePosition.character / (line.text.length + 2);
         return (lineNumber + progress) * 18;
+    }
+
+    public scrollPanel(textEditor: vscode.TextEditor) {
+        const line = this.getScrollPosition(textEditor);
+        if (typeof line === 'number' && LiveValuesPanel.currentPanel) {
+			this._panel.webview.postMessage({ command: 'editorScroll', scroll: line });
+        }
     }
 
 	public refreshWebview() {

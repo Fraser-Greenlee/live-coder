@@ -2,7 +2,6 @@
 ///////////// Main
 
 var mousedownPosition;
-var currentScroll = 0;
 var setMarginTop = false;
 var lastScrolledWebview = 0;
 var lastScrolledEditor = 0;
@@ -24,9 +23,10 @@ var lastScrolledEditor = 0;
 function handleMessagesFromExtension() {
     window.addEventListener('message', event => {
         const message = event.data;
-        switch (message.command) {
-            case 'editorScroll':
-                editorScrollMessage(message.scroll);
+        if (message.command === 'editorScroll') {
+            editorScrollMessage(message.scroll);
+        } else {
+            console.log('Error, got unknown message:', message.command);
         }
     });
 }
@@ -117,14 +117,14 @@ function _notScrollingEditor() {
 }
 
 function editorScrollMessage(scroll) {
-    currentScroll = scroll;
     var liveValues = document.getElementById('scrollableLiveValues');
-    liveValues.scrollTop = currentScroll;
+    _modScroll(scroll - liveValues.scrollTop);
     lastScrolledEditor = Date.now();
-    _setMarginTop(liveValues, currentScroll);
+    _setMarginTop(scroll);
 }
 
-function _setMarginTop(liveValues, scroll) {
+function _setMarginTop(scroll) {
+    var liveValues = document.getElementById('scrollableLiveValues');
     if (scroll <= 2) {
         if (setMarginTop === false) {
             liveValues.style.marginTop = '23px';
@@ -136,7 +136,7 @@ function _setMarginTop(liveValues, scroll) {
     }
 }
 
-function _scrollToLineNo(scroll) {
+function _scrollLineNumber(scroll) {
     return Math.floor(scroll/18);
 }
 
@@ -146,10 +146,9 @@ function handleScrolling(vscode) {
         'scroll',
         _throttle(() => {
             if (_notScrollingEditor()) {
-                currentScroll = liveValues.scrollTop;
                 lastScrolledWebview = Date.now();
-                vscode.postMessage({command: 'revealLine', line: _scrollToLineNo(currentScroll)});
-                _setMarginTop(liveValues, currentScroll);
+                vscode.postMessage({command: 'revealLine', line: _scrollLineNumber(liveValues.scrollTop)});
+                _setMarginTop(liveValues.scrollTop);
             }
         }, 10)
     );
@@ -394,7 +393,7 @@ function _cantSee(rect) {
 }
 
 function _modScroll(mod) {
-    document.getElementById('scrollableLiveValues').scrollTop = currentScroll + mod;
+    document.getElementById('scrollableLiveValues').scrollTop = document.getElementById('scrollableLiveValues').scrollTop + mod;
 }
 
 function _scrollToFunction(node) {
