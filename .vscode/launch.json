@@ -21,6 +21,7 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
+				"/Users/Fraser/projects/active/live_coder_py_module/test_runs",
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
 			],

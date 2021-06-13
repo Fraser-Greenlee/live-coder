@@ -128,7 +128,7 @@ export class LogsTracker {
             }
             for (let functionName in funcCallRender[path]) {
                 if (!(functionName in selectedCallIds[path]) || !(selectedCallIds[path][functionName] in funcCallRender[path][functionName]['calls'])) {
-                    selectedCallIds[path][functionName] = funcCallRender[path][functionName]['calls'][0];
+                    selectedCallIds[path][functionName] = `${path}:${functionName}:0`;
                 }
             }
         }

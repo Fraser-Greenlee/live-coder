@@ -41,6 +41,9 @@ function htmlForAFunction(
     selectedCallId: string,
     functionName: string
 ) {
+    if (!selectedCallId) {
+        throw new Error(`No callId for ${functionName}`);
+    }
     let functionCallsHTML: string[] = new Array();
     Object.keys(functionInfo.calls).forEach(callId => {
         functionCallsHTML.push(
@@ -61,13 +64,13 @@ function htmlForFunctions(
     },
     selectedCallIds: {[func: string]: string}
 ) {
-    let hmlFunctions: string[] = new Array();
+    let htmlFunctions: string[] = new Array();
     Object.keys(functionsToCalls).forEach(functionName => {
-        hmlFunctions.push(
+        htmlFunctions.push(
             htmlForAFunction(functionsToCalls[functionName], selectedCallIds[functionName], functionName)
         );
     });
-    return hmlFunctions.join('');
+    return htmlFunctions.join('');
 }
 
 export function renderFiles(
