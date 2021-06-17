@@ -164,12 +164,20 @@ class ExecutedFunction {
         this.appendLine(line);
     }
 
-    public addLine(lineNum: number, value: string, callId: string | null, isReturn: boolean | null) {
+    public addLine(lineNum: number, value: string, callId: string | null, lineSubType: string | null) {
         lineNum = this.normLineNum(lineNum);
 
         let line: (FunctionLink | Line);
         if (callId) {
             line = new FunctionLink(callId, lineNum, value);
+        } else if (lineSubType) {
+            if (lineSubType === "StdOut") {
+                line = new StdOut(lineNum, value);
+            } else if (lineSubType === "ErrorLine") {
+                line = new ErrorLine(lineNum, value);
+            } else {
+                throw new Error("not recognised sub type");
+            }
         } else {
             line = new Line(lineNum, value);
         }
@@ -234,6 +242,12 @@ class Line {
         this.value = value;
     }
 }
+
+
+class StdOut extends Line {}
+
+
+class ErrorLine extends Line {}
 
 
 class FunctionLink extends Line {
