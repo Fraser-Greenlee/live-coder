@@ -138,9 +138,19 @@ export function parseExecution(logs: string[]) {
             if ((isSnoopLine(nextCode) || i === lines.length-1) && stdOutCollector.length > 0) {
 
                 if (methodExecs.length > 0) {
-                    const lineNum = findPrevLineNum(lines, i);
+
+                    const lastCode = lineCode(lines[i - stdOutCollector.length]);
+                    let lineNum;
+                    if (isReturnLine(lastCode) && isCodeLine(nextCode)) {
+                        lineNum = getLineNum(nextCode);
+                    } else {
+                        lineNum = findPrevLineNum(lines, i);
+                    }
+
                     if (lineNum) {
                         methodExecs[methodExecs.length-1].addLine(lineNum, stdOutCollector.join('\n'), null, "StdOut");
+                    } else {
+                        console.warn('No line number for stdout, not including in UI.');
                     }
                 }
                 stdOutCollector = new Array();
