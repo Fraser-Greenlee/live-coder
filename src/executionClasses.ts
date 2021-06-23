@@ -46,7 +46,7 @@ class aFunction {
         this.executions = new Array();
     }
 
-    public getExec({i = null}: {i?: number | null }) {
+    public getExecution({i = null}: {i?: number | null }) {
         if (i === null) {
             i = this.executions.length;
             this.executions.push(

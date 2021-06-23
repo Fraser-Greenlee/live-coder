@@ -15,7 +15,7 @@ async function getLogFiles(liveCoderFolder: string) {
     let logFiles: {path: string, command: string}[] = new Array();
     var files = fs.readdirSync(liveCoderFolder);
     for (const file of files) {
-        if (!file.endsWith('.txt')) {
+        if (!file.endsWith('.log')) {
             return;
         }
 

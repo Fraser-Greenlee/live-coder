@@ -16,7 +16,7 @@ suite('Extension Test Suite', () => {
 
 	test('Parse Example', () => {
 		let logsTracker = new LogsTracker();
-		logsTracker.changeLogFile('testpy.txt');
+		logsTracker.changeLogFile('testpy.log');
 		logsTracker.render();
 		assert.notStrictEqual(
 			{

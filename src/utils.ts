@@ -1,4 +1,21 @@
 
+
+class Stack<T> {
+    _store: T[] = [];
+    push(val: T) {
+      this._store.push(val);
+    }
+    peak(): T | undefined {
+        if (this._store.length > 0) {
+            return this._store[this._store.length-1];
+        }
+    }
+    pop(): T | undefined {
+      return this._store.pop();
+    }
+}
+
+
 function isDigit(c: string) {
     return c >= '0' && c <= '9';
 }
@@ -14,5 +31,5 @@ function split(s: string, c: string) {
 }
 
 export {
-    isDigit, isLetter, split
+    Stack, isDigit, isLetter, split
 };

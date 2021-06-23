@@ -1,64 +1,6 @@
-import { split } from "./utils";
+import { split, Stack } from "./utils";
 import { lineKey } from "./config";
 import { AllFiles, ExecutedFunction } from "./executionClasses";
-
-
-function isSnoopLine(line: string) {
-    return line.startsWith(lineKey);
-}
-
-function lineCode(line: string) {
-    // e.g. "4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
-    return line.substring(lineKey.length).trim().substring('20:10:20.44 '.length).trim();
-}
-
-function isCallLine(code: string) { 
-    return code.startsWith('>>> Call to ');
-}
-
-function isErrorLine(code: string) {
-    return code.startsWith('!!! ') || code.startsWith('??? ');;
-}
-
-function isErrorReturLine(errorContent: string) {
-    return errorContent.startsWith('Call either returned None or ended by exception') || errorContent.startsWith('Call ended by exception');
-}
-
-function isStateLine(code: string) {
-    const dots = split(code, ' ')[0];
-    return dots === ".".repeat(dots.length);
-}
-
-function parseState(code: string) {
-    return code.substring(split(code, ' ')[0].length).trim();
-}
-
-function getTab(code: string) {
-    const pastVert = code.substring(code.indexOf('|')+1);
-    return pastVert.length - pastVert.trimStart().length;
-}
-
-function isCodeLine(code: string) {
-    return getLineNum(code) !== undefined;
-}
-
-function isYieldLine(code: string) {
-    return code.startsWith('<<< Yield value from');
-}
-
-function isReturnLine(code: string) {
-    return code.startsWith('<<< Return value from');
-}
-
-function parseYield(code: string) {
-    const value = code.substring(('<<< Yield value from ' + split(code, ' ')[4]).length + 1);
-    return 'yield ' + value.trim();
-}
-
-function parseReturn(code: string) {
-    const value = code.substring(('<<< Return value from ' + split(code, ' ')[4]).length + 1);
-    return 'return ' + value.trim();
-}
 
 
 function isGroupLine(code: string) {
@@ -66,195 +8,377 @@ function isGroupLine(code: string) {
     return tokens.length > 2 && ['for', 'while'].indexOf(tokens[2]) > -1;
 }
 
-function parseMethod(code: string) {
-    const tokens = split(code, ' ');
-    const methodName = tokens[3];
-    const lineNumTo = Number(tokens.slice(-1).pop());
-    const path = code.substring(`>>> Call to ${methodName} in File "`.length, code.length - `", line ${lineNumTo}`.length);
-    return {path, methodName, lineNumTo};
-}
 
-function getLineNum(line: string) {
-    const tokens = split(line, ' ');
-    if (tokens[1] !== '|') {
-        return;
+class AllLines {
+    private lines: string[];
+    private code: (string|null)[];
+
+    constructor (logLines: string[]) {
+        const skipFirstLine = logLines.slice(1);
+        this.lines = this.trimLines(skipFirstLine);
+        this.code = this.getAllLineCode(this.lines);
     }
-    const lineNum = Number(tokens[0]);
-    if (typeof lineNum === "number") {
+
+    private trimLines(logLines: string[]) {
+        return logLines.map( (l) => {
+            l = l.trim();
+            if (l.startsWith('INFO:root:')) {
+                return l.substring('INFO:root:'.length);
+            }
+            return l;
+        });
+    }
+
+    private isSnoopLine(line: string) {
+        return line.startsWith(lineKey);
+    }
+
+    private getLineCode(line: string) {
+        // e.g. "4EmR7TzOvAICFVCp2wcU         20:10:20.44 >>> Call to..." -> ">>> Call to..."
+        return line.substring(lineKey.length).trim().substring('20:10:20.44 '.length).trim();
+    }
+
+    private getAllLineCode(lines: string[]) {
+        let code: (string|null)[] = new Array();
+        lines.forEach( (line, i) => {
+            if (!this.isSnoopLine(line)) {
+                code.push(null);
+                return;
+            }
+            code.push(this.getLineCode(this.lines[i+1]));
+        });
+        return code;
+    }
+
+    public getLine(i: number) {
+        return this.lines[i];
+    }
+
+    public getLinesSlice(start: number, end: number) {
+        return this.lines.slice(start, end);
+    }
+
+    public getPreviousLineNum(i: number) {
+        let lineNum = undefined;
+        const startI = i;
+
+        i--;
+        while (lineNum === undefined && i > -1) {
+
+            const code = this.getCode(i);
+
+            if (code === null) {
+                i--;
+                continue;
+            }
+
+            if (CallLineType.is(code)) {
+                lineNum = CallLineType.getLineNum(code);
+            } else if (CodeLineType.is(code)) {
+                lineNum = CodeLineType.getLineNum(code);
+            }
+            i--;
+        }
+
+        if (!lineNum) {
+            throw new Error(`Missing line number for "${this.lines[startI]}".`);
+        }
         return lineNum;
     }
-}
 
-function findPrevLineNum(lines: string[], i: number) {
-    let lineNum = undefined;
-    let c = i - 1;
-    while (lineNum === undefined && c > -1) {
-
-        if (!isSnoopLine(lines[c])) {
-            c -= 1;
-            continue;
-        }
-
-        const code = lineCode(lines[c]);
-        if (isCallLine(code)) {
-            lineNum = Number(split(code, ' ').slice(-1).pop());
-        } else {
-            lineNum = getLineNum(code);
-        }
-        c -= 1;
+    public getCode(i: number) {
+        return this.code[i];
     }
-    return lineNum;
+
+    public lineCount() {
+        return this.lines.length;
+    }
 }
 
-export function parseExecution(logs: string[]) {
-    let allFiles: AllFiles = new AllFiles();
-    let methodExecs: ExecutedFunction[] = new Array();
 
-    let lines = logs.map( (l) => {
-        l = l.trim();
-        if (l.startsWith('INFO:root:')) {
-            return l.substring('INFO:root:'.length);
+class StdOutLineType {
+
+    public static is(code: string | null) {
+        return code === null;
+    }
+
+    private static getLineCount(lines: AllLines, i: number) {
+        let lineCount = 0;
+        while (lines.getCode(i+lineCount) !== null) {
+            lineCount++;
         }
-        return l;
-    });
+        return lineCount;
+    }
 
-    let stdOutCollector: string[] = new Array();
-    let errorCollector: string[] = new Array();
+    public static parse(lines: AllLines, i: number) {
 
-    lines.forEach( (line, i) => {
+        const lineCount = StdOutLineType.getLineCount(lines, i);
+        const stdOutLines: string[] = lines.getLinesSlice(i, i+lineCount);
+        const stdOut = stdOutLines.join('\n');
 
-        if (i === 0) {
+        return {stdOut, lineCount};
+    }
+}
+
+
+class CodeLineType {
+
+    public static is(code: string) {
+        return CodeLineType.getLineNum(code) !== null;
+    }
+
+    public static getLineNum(code: string) {
+        const tokens = split(code, ' ');
+        if (tokens[1] !== '|') {
             return;
         }
+        const lineNum = Number(tokens[0]);
+        if (typeof lineNum === "number") {
+            return lineNum;
+        }
+    }
 
-        if (!isSnoopLine(line)) {
-            stdOutCollector.push(line);
+    public static getTab(code: string) {
+        const pastVert = code.substring(code.indexOf('|')+1);
+        return pastVert.length - pastVert.trimStart().length;
+    }
 
-            let nextCode = '';
-            if (i < lines.length-1) {
-                nextCode = lineCode(lines[i+1]);
-            }
+    public static parse(code: string) {
+        const lineNum = CodeLineType.getLineNum(code);
+        if (!lineNum) {
+            throw new Error(`Not true code line somehow got called "${code}".`);
+        }
+        const tab: number = CodeLineType.getTab(code);
+        return {lineNum, tab};
+    }
+}
 
-            if ((isSnoopLine(nextCode) || i === lines.length-1) && stdOutCollector.length > 0) {
+class CallLineType {
 
-                if (methodExecs.length > 0) {
+    public static is(code: string) {
+        return code.startsWith('>>> Call to ');
+    }
 
-                    const lastCode = lineCode(lines[i - stdOutCollector.length]);
-                    let lineNum;
-                    if (isReturnLine(lastCode) && isCodeLine(nextCode)) {
-                        lineNum = getLineNum(nextCode);
-                    } else {
-                        lineNum = findPrevLineNum(lines, i);
-                    }
+    private static parseCode(code: string) {
+        const tokens = split(code, ' ');
+        const methodName = tokens[3];
+        const lineNumTo = Number(tokens.slice(-1).pop());
+        const path = code.substring(`>>> Call to ${methodName} in File "`.length, code.length - `", line ${lineNumTo}`.length);
+        return {path, methodName, lineNumTo};
+    }
 
-                    if (lineNum) {
-                        methodExecs[methodExecs.length-1].addLine(lineNum, stdOutCollector.join('\n'), null, "StdOut");
-                    } else {
-                        console.warn('No line number for stdout, not including in UI.');
-                    }
-                }
-                stdOutCollector = new Array();
+    public static getLineNum(code: string) {
+        return Number(split(code, ' ').slice(-1).pop());
+    }
 
-            }
+    public static process(lines: AllLines, i: number) {
+        const code = lines.getCode(i)!;
 
-            return;
+        const {path, methodName, lineNumTo} = CallLineType.parseCode(code);
+
+        if (!lineNumTo) {
+            throw new Error(`Missing line number (called to) for method "${code}".`);
         }
 
-        const code = lineCode(line);
+        const lineNumFrom = lines.getPreviousLineNum(i);
+        return {path: path, methodName: methodName, lineNumTo: lineNumTo, lineNumFrom: lineNumFrom};
+    }
+}
 
-        if (isCallLine(code)) {
-            const {path, methodName, lineNumTo} = parseMethod(code);
+class StateLineType {
 
-            if (!lineNumTo) {
-                throw new Error(`Missing line number (called to) for method "${line}".`);
+    public static is(code: string) {
+        const dots = split(code, ' ')[0];
+        return dots === ".".repeat(dots.length);
+    }
+
+    public static parse(code: string) {
+        return code.substring(split(code, ' ')[0].length).trim();
+    }
+}
+
+class ErrorLineType {
+
+    public static is(code: string) {
+        return code.startsWith('!!! ') || code.startsWith('??? ');;
+    }
+
+    public static lineError(lines: AllLines, i: number) {
+        let code = lines.getCode(i);
+        if (code) {
+            return code.substring(4);
+        }
+        return code;
+    }
+
+    public static parse(lines: AllLines, i: number) {
+        let errorLineCount = 0;
+        let error = ErrorLineType.lineError(lines, i + errorLineCount);
+        while (error && ErrorLineType.is(error)) {
+            errorLineCount++;
+            error = ErrorLineType.lineError(lines, i + errorLineCount);
+        }
+
+        let errorMessageLineCount = errorLineCount-1;
+        error = ErrorLineType.lineError(lines, i + errorMessageLineCount);
+        if (ErrorLineType.isReturn(error!)) {
+            errorMessageLineCount--;
+        }
+
+        return {error: lines.getLinesSlice(i, errorMessageLineCount).join('\n'), lineCount: errorLineCount};
+    }
+
+    public static isReturn(error: string) {
+        return error.startsWith('Call either returned None or ended by exception') || error.startsWith('Call ended by exception');
+    }
+}
+
+class YieldLineType {
+
+    public static is(code: string) {
+        return code.startsWith('<<< Yield value from');
+    }
+
+    public static parse(code: string) {
+        const value = code.substring(('<<< Yield value from ' + split(code, ' ')[4]).length + 1);
+        return 'yield ' + value.trim();
+    }
+}
+
+class ReturnLineType {
+
+    public static is(code: string) {
+        return code.startsWith('<<< Return value from');
+    }
+
+    public static parse(code: string) {
+        const value = code.substring(('<<< Return value from ' + split(code, ' ')[4]).length + 1);
+        return 'return ' + value.trim();
+    }
+}
+
+
+class ExecutionTracker {
+    public lines: AllLines;
+    public allFiles: AllFiles;
+    private activeExecutions: Stack<ExecutedFunction>;
+
+    constructor (lines: AllLines) {
+        this.lines = lines;
+        this.allFiles = new AllFiles();
+        this.activeExecutions = new Stack();
+    }
+
+    private getNewMethod(path: string, methodName: string, lineNum: number) {
+        const file = this.allFiles.getFile(path);
+        return file.getMethod(methodName, lineNum);
+    }
+
+    private addCallLink(lineNum: number, methodName: string, callId: string) {
+        let lastExec = this.activeExecutions.peak();
+        if (lastExec) {
+            lastExec.addLine(lineNum, methodName, callId, null);
+        }
+    }
+
+    private startNewMethod(lineNumCalledFrom: number, path: string, methodName: string, lineNum: number) {
+        const method = this.getNewMethod(path, methodName, lineNum);
+        const newExecution = method.getExecution({});
+        this.addCallLink(lineNumCalledFrom, method.name, newExecution.callId);
+        this.activeExecutions.push(newExecution);
+    }
+
+    public processLineTypes(i: number) {
+
+        let code = this.lines.getCode(i);
+
+        if (StdOutLineType.is(code)) {
+
+            const {stdOut, lineCount} = StdOutLineType.parse(this.lines, i);
+
+            let currentExec = this.activeExecutions.peak();
+            const lineNum = this.lines.getPreviousLineNum(i);
+            if (currentExec && lineNum) {
+                currentExec.addLine(lineNum, stdOut, null, "StdOut");
             }
-
-            const file = allFiles.getFile(path as string);
-            const method = file.getMethod(methodName as string, lineNumTo as number);
-            const aMethodExec = method.getExec({});
-
-            if (methodExecs.length > 0) {
-                const lineNumFrom = findPrevLineNum(lines, i);
-                if (!lineNumFrom) {
-                    throw new Error(`Missing line number (called from) for method "${line}".`);
-                }
-                methodExecs[methodExecs.length-1].addLine(lineNumFrom, methodName, aMethodExec.callId, null);
-            }
-            methodExecs.push(aMethodExec);
-
-        } else if (isStateLine(code)) {
-            const lineNum = findPrevLineNum(lines, i);
-            if (!lineNum) {
-                throw new Error(`Missing line number for state "${line}".`);
-            }
-            const value: string = parseState(code);
-            methodExecs[methodExecs.length-1].addLine(lineNum, value, null, null);
-
-        } else if (isErrorLine(code)) {
-            let errorContent = code.substring(4, code.length);
-            errorCollector.push(errorContent);
-
-            let nextCode = '';
-            if (i < lines.length-1) {
-                nextCode = lineCode(lines[i+1]);
-            }
-
-            if ((!isErrorLine(nextCode) || i === lines.length-1) && errorCollector.length > 0) {
-
-                let doesReturn = isErrorReturLine(errorCollector[errorCollector.length - 1]);
     
-                let errorEndIndex: number = errorCollector.length - 2;
-                if (doesReturn) {
-                    errorEndIndex--;
+            return i + lineCount;
+        }
+
+        // code is not not null
+        code = code!;
+
+        if (CallLineType.is(code)) {
+            const {path, methodName, lineNumTo, lineNumFrom} = CallLineType.process(this.lines, i);
+            this.startNewMethod(lineNumFrom, path, methodName, lineNumTo);
+
+        } else if (StateLineType.is(code)) {
+            const value: string = StateLineType.parse(code);
+            const lineNum = this.lines.getPreviousLineNum(i);
+            this.activeExecutions.peak()!.addLine(lineNum, value, null, null);
+
+        } else if (ErrorLineType.is(code)) {
+
+            const {error, lineCount} = ErrorLineType.parse(this.lines, i);
+            const lineNum = this.lines.getPreviousLineNum(i);
+
+            if (ErrorLineType.isReturn(error)) {
+                // TODO: pop exec stack & add callId link
+                let lastExec = this.activeExecutions.pop()!;
+                let callingExec = this.activeExecutions.peak();
+                let callId = '';
+                if (callingExec) {
+                    callId = callingExec.callId;
                 }
-                const errorText = errorCollector.slice(0, errorEndIndex).join('\n');
-    
-                const lineNum = findPrevLineNum(lines, i);
-                if (!lineNum) {
-                    throw new Error(`Can't find line number for error "${errorText}".`);
-                }
-    
-                let callId: string | null = null;
-                if (doesReturn && methodExecs.length > 1) {
-                    callId = methodExecs[methodExecs.length-2].callId;
-                }
-    
-                methodExecs[methodExecs.length-1].addLine(lineNum, errorText, callId, "ErrorLine");
-    
-                if (doesReturn) {
-                    methodExecs.pop();
-                }
-                errorCollector = new Array();
+                lastExec.addLine(lineNum, error, callId, "ErrorLine");
+            } else {
+                this.activeExecutions.peak()!.addLine(lineNum, error, null, "ErrorLine");
             }
 
-        } else if (isCodeLine(code)) {
-            const lineNum = getLineNum(code);
-            if (!lineNum) {
-                throw new Error(`Missing line number for code line "${line}".`);
-            }
-            const tab: number = getTab(code);
-            methodExecs[methodExecs.length-1].handleGroup(lineNum, tab, isGroupLine(code));
+            // skip to error message end
+            return i + lineCount;
 
-        } else if (isReturnLine(code) || isYieldLine(code)) {
+        } else if (CodeLineType.is(code)) {
+
+            const {lineNum, tab} = CodeLineType.parse(code);
+            this.activeExecutions.peak()!.handleGroup(lineNum, tab, isGroupLine(code));
+
+        } else if (ReturnLineType.is(code) || YieldLineType.is(code)) {
+
             let value: string;
-            if (isReturnLine(code)) {
-                value = parseReturn(code);
+            if (ReturnLineType.is(code)) {
+                value = ReturnLineType.parse(code);
             } else {
-                value = parseYield(code);
+                value = YieldLineType.parse(code);
             }
-            const lineNum = findPrevLineNum(lines, i);
+            const lineNum = this.lines.getPreviousLineNum(i);
             if (!lineNum) {
-                throw new Error(`Missing line number for return/yield line "${line}".`);
+                throw new Error(`Missing line number for return/yield line "${code}".`);
             }
-            if (methodExecs.length >= 2) {
-                methodExecs[methodExecs.length-1].addLine(lineNum, value, methodExecs[methodExecs.length-2].callId, null);
-            } else {
-                methodExecs[methodExecs.length-1].addLine(lineNum, value, null, null);
-            }
-            methodExecs.pop();
 
+            let lastExec = this.activeExecutions.pop()!;
+            let callingExec = this.activeExecutions.peak();
+            let callId = '';
+            if (callingExec) {
+                callId = callingExec.callId;
+            }
+            lastExec.addLine(lineNum, value, callId, null);
+
+        } else {
+            throw new Error(`Invalid line type: ${this.lines.getLine(i)}`);
         }
-    });
+        return i;
+    }
+}
 
-    return allFiles;
+export function parseExecution(logLines: string[]) {
+
+    let lines: AllLines = new AllLines(logLines);
+    let tracker: ExecutionTracker = new ExecutionTracker(lines);
+
+    for (let i = 0; i < lines.lineCount(); i++) {
+        i = tracker.processLineTypes(i);
+    }
+
+    return tracker.allFiles;
 }

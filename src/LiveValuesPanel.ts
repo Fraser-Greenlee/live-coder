@@ -135,7 +135,7 @@ export class LiveValuesPanel {
 		let fileName = methodParts.join(' ');
 		fileName = this._sanitize(fileName);
 		fileName = fileName.substring(fileName.length - 75, fileName.length);
-		return fileName + '.txt';
+		return fileName + '.log';
 	}
 
 	private _addWebviewMessageHandlers() {
