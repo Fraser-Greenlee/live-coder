@@ -121,7 +121,7 @@ class CodeLineType {
         return CodeLineType.getLineNum(code) !== null;
     }
 
-    private static getLineNum(code: string) {
+    public static getLineNum(code: string) {
         const tokens = split(code, ' ');
         if (tokens[1] !== '|') {
             return;
