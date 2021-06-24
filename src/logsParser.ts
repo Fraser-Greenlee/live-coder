@@ -1,12 +1,6 @@
 import { split, Stack } from "./utils";
 import { lineKey } from "./config";
-import { AllFiles, ExecutedFunction } from "./executionClasses";
-
-
-function isGroupLine(code: string) {
-    const tokens = split(code, ' ');
-    return tokens.length > 2 && ['for', 'while'].indexOf(tokens[2]) > -1;
-}
+import { AllFiles, ErrorLine, ErrorReturnLine, ExecutedFunction, FunctionLink, StateLine, StdOutLine } from "./executionClasses";
 
 
 class AllLines {
@@ -127,7 +121,7 @@ class CodeLineType {
         return CodeLineType.getLineNum(code) !== null;
     }
 
-    public static getLineNum(code: string) {
+    private static getLineNum(code: string) {
         const tokens = split(code, ' ');
         if (tokens[1] !== '|') {
             return;
@@ -138,9 +132,14 @@ class CodeLineType {
         }
     }
 
-    public static getTab(code: string) {
+    private static getTab(code: string) {
         const pastVert = code.substring(code.indexOf('|')+1);
         return pastVert.length - pastVert.trimStart().length;
+    }
+
+    private static isGroupLine(code: string) {
+        const tokens = split(code, ' ');
+        return tokens.length > 2 && ['for', 'while'].indexOf(tokens[2]) > -1;
     }
 
     public static parse(code: string) {
@@ -149,7 +148,8 @@ class CodeLineType {
             throw new Error(`Not true code line somehow got called "${code}".`);
         }
         const tab: number = CodeLineType.getTab(code);
-        return {lineNum, tab};
+        const isGroupLine = CodeLineType.isGroupLine(code);
+        return {lineNum, tab, isGroupLine};
     }
 }
 
@@ -269,32 +269,13 @@ class ExecutionTracker {
         this.activeExecutions = new Stack();
     }
 
-    private getNewMethod(path: string, methodName: string, lineNum: number) {
-        const file = this.allFiles.getFile(path);
-        return file.getMethod(methodName, lineNum);
-    }
-
-    private addCallLink(lineNum: number, methodName: string, callId: string) {
-        let lastExec = this.activeExecutions.peak();
-        if (lastExec) {
-            lastExec.addLine(lineNum, methodName, callId, null);
-        }
-    }
-
-    private startNewMethod(lineNumCalledFrom: number, path: string, methodName: string, lineNum: number) {
-        const method = this.getNewMethod(path, methodName, lineNum);
-        const newExecution = method.getExecution({});
-        this.addCallLink(lineNumCalledFrom, method.name, newExecution.callId);
-        this.activeExecutions.push(newExecution);
-    }
-
     private processStdOutLines(i: number) {
         const {stdOut, lineCount} = StdOutLineType.parse(this.lines, i);
 
         let currentExec = this.activeExecutions.peak();
         const lineNum = this.lines.getPreviousLineNum(i);
         if (currentExec && lineNum) {
-            currentExec.addLine(lineNum, stdOut, null, "StdOut");
+            currentExec.addLine(lineNum, new StdOutLine(stdOut));
         }
 
         return i + lineCount;
@@ -302,14 +283,22 @@ class ExecutionTracker {
 
     private processCallLine(i: number) {
         const {path, methodName, lineNumTo, lineNumFrom} = CallLineType.process(this.lines, i);
-        this.startNewMethod(lineNumFrom, path, methodName, lineNumTo);
+
+        const method = this.allFiles.getFile(path).getMethod(methodName, lineNumTo);
+        const newExecution = method.getExecution({});
+        let lastExec = this.activeExecutions.peak();
+        if (lastExec) {
+            lastExec.addLine(lineNumFrom, new FunctionLink(newExecution.callId, methodName));
+        }
+        this.activeExecutions.push(newExecution);
+
         return i;
     }
 
     private processStateLine(i: number) {
         const value: string = StateLineType.parse(this.lines.getCode(i)!);
         const lineNum = this.lines.getPreviousLineNum(i);
-        this.activeExecutions.peak()!.addLine(lineNum, value, null, null);
+        this.activeExecutions.peak()!.addLine(lineNum, new StateLine(value));
         return i;
     }
 
@@ -325,9 +314,9 @@ class ExecutionTracker {
             if (callingExec) {
                 callId = callingExec.callId;
             }
-            lastExec.addLine(lineNum, error, callId, "ErrorLine");
+            lastExec.addLine(lineNum, new ErrorReturnLine(callId, error));
         } else {
-            this.activeExecutions.peak()!.addLine(lineNum, error, null, "ErrorLine");
+            this.activeExecutions.peak()!.addLine(lineNum, new ErrorLine(error));
         }
 
         // skip to error message end
@@ -336,8 +325,8 @@ class ExecutionTracker {
 
     private processCodeLine(i: number) {
         const code = this.lines.getCode(i)!;
-        const {lineNum, tab} = CodeLineType.parse(code);
-        this.activeExecutions.peak()!.handleGroup(lineNum, tab, isGroupLine(code));
+        const {lineNum, tab, isGroupLine} = CodeLineType.parse(code);
+        this.activeExecutions.peak()!.handleGroup(lineNum, tab, isGroupLine);
         return i;
     }
 
@@ -360,7 +349,7 @@ class ExecutionTracker {
         if (callingExec) {
             callId = callingExec.callId;
         }
-        lastExec.addLine(lineNum, value, callId, null);
+        lastExec.addLine(lineNum, new FunctionLink(callId, value));
         return i;
     }
     

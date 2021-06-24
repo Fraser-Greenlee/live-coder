@@ -138,7 +138,7 @@ class ExecutedFunction {
         }
     }
 
-    private _addLine(lineNum: number, line: (FunctionLink | Line)) {
+    private _addLine(line: Line) {
         let lastLine: (Line| Line[] | undefined) = this.getLastLine();
 
         if (lastLine) {
@@ -150,7 +150,7 @@ class ExecutedFunction {
                 lastLineNum = lastLine.lineNum;
             }
 
-            if (lastLineNum === lineNum) {
+            if (lastLineNum === line.lineNum) {
                 if (Array.isArray(lastLine)) {
                     lastLine.push(line);
                 } else {
@@ -164,25 +164,9 @@ class ExecutedFunction {
         this.appendLine(line);
     }
 
-    public addLine(lineNum: number, value: string, callId: string | null, lineSubType: string | null) {
-        lineNum = this.normLineNum(lineNum);
-
-        let line: (FunctionLink | Line);
-        if (callId) {
-            line = new FunctionLink(callId, lineNum, value);
-        } else if (lineSubType) {
-            if (lineSubType === "StdOut") {
-                line = new StdOut(lineNum, value);
-            } else if (lineSubType === "ErrorLine") {
-                line = new ErrorLine(lineNum, value);
-            } else {
-                throw new Error("not recognised sub type");
-            }
-        } else {
-            line = new Line(lineNum, value);
-        }
-
-        this._addLine(lineNum, line);
+    public addLine(rawLineNum: number, line: Line) {
+        line.lineNum = this.normLineNum(rawLineNum);
+        this._addLine(line);
     }
 }
 
@@ -237,15 +221,16 @@ class Line {
     public lineNum: number;
     public value: string;
 
-    constructor(lineNum: number, value: string) {
-        this.lineNum = lineNum;
+    constructor(value: string) {
+        this.lineNum = -1;
         this.value = value;
     }
 }
 
 
-class StdOut extends Line {}
+class StateLine extends Line {}
 
+class StdOutLine extends Line {}
 
 class ErrorLine extends Line {}
 
@@ -256,12 +241,15 @@ class FunctionLink extends Line {
     */
     public callId: string;
 
-    constructor(callId: string, lineNum: number, value: string) {
-        super(lineNum, value);
+    constructor(callId: string, value: string) {
+        super(value);
         this.callId = callId;
     }
 }
 
+class ErrorReturnLine extends FunctionLink {}
+
+
 export {
-    AllFiles, File, aFunction, ExecutedFunction, LineGroup, Line, FunctionLink
+    AllFiles, File, aFunction, ExecutedFunction, LineGroup, Line, StateLine, StdOutLine, ErrorLine, FunctionLink, ErrorReturnLine
 };
