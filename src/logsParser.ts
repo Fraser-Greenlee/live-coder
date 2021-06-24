@@ -288,86 +288,115 @@ class ExecutionTracker {
         this.activeExecutions.push(newExecution);
     }
 
-    public processLineTypes(i: number) {
+    private processStdOutLines(i: number) {
+        const {stdOut, lineCount} = StdOutLineType.parse(this.lines, i);
 
-        let code = this.lines.getCode(i);
-
-        if (StdOutLineType.is(code)) {
-
-            const {stdOut, lineCount} = StdOutLineType.parse(this.lines, i);
-
-            let currentExec = this.activeExecutions.peak();
-            const lineNum = this.lines.getPreviousLineNum(i);
-            if (currentExec && lineNum) {
-                currentExec.addLine(lineNum, stdOut, null, "StdOut");
-            }
-    
-            return i + lineCount;
+        let currentExec = this.activeExecutions.peak();
+        const lineNum = this.lines.getPreviousLineNum(i);
+        if (currentExec && lineNum) {
+            currentExec.addLine(lineNum, stdOut, null, "StdOut");
         }
 
-        // code is not not null
-        code = code!;
+        return i + lineCount;
+    }
 
-        if (CallLineType.is(code)) {
-            const {path, methodName, lineNumTo, lineNumFrom} = CallLineType.process(this.lines, i);
-            this.startNewMethod(lineNumFrom, path, methodName, lineNumTo);
+    private processCallLine(i: number) {
+        const {path, methodName, lineNumTo, lineNumFrom} = CallLineType.process(this.lines, i);
+        this.startNewMethod(lineNumFrom, path, methodName, lineNumTo);
+        return i;
+    }
 
-        } else if (StateLineType.is(code)) {
-            const value: string = StateLineType.parse(code);
-            const lineNum = this.lines.getPreviousLineNum(i);
-            this.activeExecutions.peak()!.addLine(lineNum, value, null, null);
+    private processStateLine(i: number) {
+        const value: string = StateLineType.parse(this.lines.getCode(i)!);
+        const lineNum = this.lines.getPreviousLineNum(i);
+        this.activeExecutions.peak()!.addLine(lineNum, value, null, null);
+        return i;
+    }
 
-        } else if (ErrorLineType.is(code)) {
+    private processErrorLines(i: number) {
+        const {error, lineCount} = ErrorLineType.parse(this.lines, i);
+        const lineNum = this.lines.getPreviousLineNum(i);
 
-            const {error, lineCount} = ErrorLineType.parse(this.lines, i);
-            const lineNum = this.lines.getPreviousLineNum(i);
-
-            if (ErrorLineType.isReturn(error)) {
-                // TODO: pop exec stack & add callId link
-                let lastExec = this.activeExecutions.pop()!;
-                let callingExec = this.activeExecutions.peak();
-                let callId = '';
-                if (callingExec) {
-                    callId = callingExec.callId;
-                }
-                lastExec.addLine(lineNum, error, callId, "ErrorLine");
-            } else {
-                this.activeExecutions.peak()!.addLine(lineNum, error, null, "ErrorLine");
-            }
-
-            // skip to error message end
-            return i + lineCount;
-
-        } else if (CodeLineType.is(code)) {
-
-            const {lineNum, tab} = CodeLineType.parse(code);
-            this.activeExecutions.peak()!.handleGroup(lineNum, tab, isGroupLine(code));
-
-        } else if (ReturnLineType.is(code) || YieldLineType.is(code)) {
-
-            let value: string;
-            if (ReturnLineType.is(code)) {
-                value = ReturnLineType.parse(code);
-            } else {
-                value = YieldLineType.parse(code);
-            }
-            const lineNum = this.lines.getPreviousLineNum(i);
-            if (!lineNum) {
-                throw new Error(`Missing line number for return/yield line "${code}".`);
-            }
-
+        if (ErrorLineType.isReturn(error)) {
+            // TODO: pop exec stack & add callId link
             let lastExec = this.activeExecutions.pop()!;
             let callingExec = this.activeExecutions.peak();
             let callId = '';
             if (callingExec) {
                 callId = callingExec.callId;
             }
-            lastExec.addLine(lineNum, value, callId, null);
-
+            lastExec.addLine(lineNum, error, callId, "ErrorLine");
         } else {
-            throw new Error(`Invalid line type: ${this.lines.getLine(i)}`);
+            this.activeExecutions.peak()!.addLine(lineNum, error, null, "ErrorLine");
         }
+
+        // skip to error message end
+        return i + lineCount;
+    }
+
+    private processCodeLine(i: number) {
+        const code = this.lines.getCode(i)!;
+        const {lineNum, tab} = CodeLineType.parse(code);
+        this.activeExecutions.peak()!.handleGroup(lineNum, tab, isGroupLine(code));
         return i;
+    }
+
+    private processReturnYieldLine(i: number) {
+        const code = this.lines.getCode(i)!;
+        let value: string;
+        if (ReturnLineType.is(code)) {
+            value = ReturnLineType.parse(code);
+        } else {
+            value = YieldLineType.parse(code);
+        }
+        const lineNum = this.lines.getPreviousLineNum(i);
+        if (!lineNum) {
+            throw new Error(`Missing line number for return/yield line "${code}".`);
+        }
+
+        let lastExec = this.activeExecutions.pop()!;
+        let callingExec = this.activeExecutions.peak();
+        let callId = '';
+        if (callingExec) {
+            callId = callingExec.callId;
+        }
+        lastExec.addLine(lineNum, value, callId, null);
+        return i;
+    }
+    
+    public processLineTypes(i: number) {
+        // process some lines and return the new i
+
+        let code = this.lines.getCode(i);
+
+        if (StdOutLineType.is(code)) {
+            return this.processStdOutLines(i);
+        }
+
+        // code is not not null
+        code = code!;
+
+        if (CallLineType.is(code)) {
+            return this.processCallLine(i);
+        }
+
+        if (StateLineType.is(code)) {
+            return this.processStateLine(i);
+        }
+        
+        if (ErrorLineType.is(code)) {
+            return this.processErrorLines(i);
+        }
+        
+        if (CodeLineType.is(code)) {
+            return this.processCodeLine(i);
+        }
+
+        if (ReturnLineType.is(code) || YieldLineType.is(code)) {
+            return this.processReturnYieldLine(i);
+        }
+
+        throw new Error(`Invalid line type: ${this.lines.getLine(i)}`);
     }
 }
 
