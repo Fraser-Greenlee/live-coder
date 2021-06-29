@@ -1,6 +1,6 @@
 const hljs = require('highlight.js');
 import { maxLoopSteps } from "./config";
-import { AllFiles, File, ExecutedFunction, LineGroup, Line, FunctionLink } from "./executionClasses";
+import { AllFiles, File, ExecutedFunction, Line, LoopLines, FunctionLink } from "./executionClasses";
 
 
 function renderJustOneLine(line: Line) {
@@ -37,16 +37,18 @@ function renderLine(line: Line | Line[], prevLineNum: number) {
 }
 
 
-
-function renderLineGroup(group: LineGroup, prevLineNum: number) {
+function renderLineLoop(loops: LoopLines, prevLineNum: number) {
     let htmlIterations: string[] = new Array();
-    for (let groupLines of group.groups) {
+    let maxLineNum: number = 0;
+    for (let index = 0; index < Math.min(loops.groups.length, maxLoopSteps); index++) {
+        const lines = loops.groups[index];
 
         let renderedLines: string[] = new Array();
-        for (let line of groupLines) {
+        for (let line of lines.lines) {
             const {lineHTML, lastLineNum} = renderAnyLine(line, prevLineNum);
             prevLineNum = lastLineNum;
             renderedLines.push(lineHTML);
+            maxLineNum = Math.max(maxLineNum, prevLineNum);
         }
 
         htmlIterations.push(
@@ -54,15 +56,15 @@ function renderLineGroup(group: LineGroup, prevLineNum: number) {
         );
     }
     return {
-        lineHTML: `<div class="loop">${htmlIterations.slice(0, maxLoopSteps).join('')}</div>`,
-        lastLineNum: prevLineNum
+        lineHTML: `<div class="loop">${htmlIterations.join('')}</div>`,
+        lastLineNum: maxLineNum
     };
 }
 
 
-function renderAnyLine(line: LineGroup | Line | Line[], prevLineNum: number) {
-    if (line instanceof LineGroup) {
-        return renderLineGroup(line, prevLineNum);
+function renderAnyLine(line: LoopLines | Line, prevLineNum: number) {
+    if (line instanceof LoopLines) {
+        return renderLineLoop(line, prevLineNum);
     }
     return renderLine(line, prevLineNum);
 }
@@ -74,7 +76,7 @@ function renderCall(call: ExecutedFunction) {
     }
     let html = '';
     let prevLineNum = 0;
-    for (let line of call.lines) {
+    for (let line of call.lines.lines) {
         const {lineHTML, lastLineNum} = renderAnyLine(line, prevLineNum);
         html += lineHTML;
         prevLineNum = lastLineNum;
@@ -97,6 +99,7 @@ function renderFile(file: File) {
     }
     return result;
 }
+
 
 function renderFunctionCalls(parse: AllFiles) {
     /*

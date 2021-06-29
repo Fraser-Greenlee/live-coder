@@ -326,7 +326,7 @@ class ExecutionTracker {
     private processCodeLine(i: number) {
         const code = this.lines.getCode(i)!;
         const {lineNum, tab, isGroupLine} = CodeLineType.parse(code);
-        this.activeExecutions.peak()!.handleGroup(lineNum, tab, isGroupLine);
+        this.activeExecutions.peak()!.handleLoop(lineNum, tab, isGroupLine);
         return i;
     }
 

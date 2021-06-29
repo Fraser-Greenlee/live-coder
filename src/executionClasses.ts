@@ -1,3 +1,4 @@
+import { Stack } from "./utils";
 
 class AllFiles {
     public files: { [name: string]: File };
@@ -70,146 +71,124 @@ class ExecutedFunction {
     public method: aFunction;
     public nthCall: number;
     public callId: string;
-    public lines: (LineGroup|Line|Line[])[];
-    public groupsStack: LineGroup[];
+    public lines: MainLines;
+    public activeLoopsStack: Stack<LoopLines>;
 
     constructor(method: aFunction, nthCall: number) {
         this.method = method;
         this.nthCall = nthCall;
         this.callId = `${this.method.file.path}:${this.method.name}:${this.nthCall}`;
-        this.lines = new Array();
-        this.groupsStack = new Array();
+        this.lines = new MainLines();
+        this.activeLoopsStack = new Stack();
     }
 
     private normLineNum(lineNum: number) {
         return lineNum - this.method.lineNum;
     }
 
-    public handleGroup(lineNum: number, tab: number, isGroupLine: boolean) {
-        lineNum = this.normLineNum(lineNum);
+    public handleLoop(rawLineNum: number, tab: number, isLoopLine: boolean) {
+        const lineNum = this.normLineNum(rawLineNum);
 
-        // exit groups
-        while (this.groupsStack && this.groupsStack.slice(-1)[0] && tab < this.groupsStack.slice(-1)[0].tab) {
-            this.groupsStack.pop();
+        const currentLoop = this.activeLoopsStack.peak();
+        if (currentLoop && currentLoop.notInLoop(lineNum, tab)) {
+            this.activeLoopsStack.pop();
         }
 
-        if (this.groupsStack && this.groupsStack.slice(-1)[0] && tab === this.groupsStack.slice(-1)[0].tab && lineNum !== this.groupsStack.slice(-1)[0].lineNum) {
-            this.groupsStack.pop();
-        }
-
-        // add a group
-        if (isGroupLine) {
-            if (this.groupsStack && this.groupsStack.slice(-1)[0] && lineNum === this.groupsStack.slice(-1)[0].lineNum) {
-                this.groupsStack[this.groupsStack.length-1].startNewGroup();
+        if (isLoopLine) {
+            const newCurrentLoop = this.activeLoopsStack.peak();
+            if (newCurrentLoop && newCurrentLoop.isInLoop(lineNum, tab)) {
+                newCurrentLoop.startNewLoop();
             } else {
-                const group = new LineGroup(lineNum, tab);
-                this.groupsStack.push(group);
-                this.lines.push(group);
+                const loop = new LoopLines(lineNum, tab);
+                this.addLine(rawLineNum, loop);
+                this.activeLoopsStack.push(loop);
             }
         }
     }
 
-    private getLastLine() {
-        if (this.groupsStack && this.groupsStack[this.groupsStack.length-1]) {
-            return this.groupsStack[this.groupsStack.length-1].getLastLine();
-        }
-        if (this.lines) {
-            let result: (Line | Line[] | LineGroup | undefined) = this.lines[this.lines.length-1];
-            while (result instanceof LineGroup) {
-                result = result.getLastLine();
-            }
-            return result;
-        }
-    }
-
-    private appendLine(line: Line) {
-        if (this.groupsStack && this.groupsStack[this.groupsStack.length-1]) {
-            this.groupsStack[this.groupsStack.length-1].addLine(line);
+    public addLine(rawLineNum: number, line: Line | LoopLines) {
+        line.lineNum = this.normLineNum(rawLineNum);
+        if (this.activeLoopsStack.peak()) {
+            this.activeLoopsStack.peak()!.push(line);
         } else {
             this.lines.push(line);
         }
     }
+}
 
-    private setLastLine(line: (Line|Line[])) {
-        if (this.groupsStack && this.groupsStack.slice(-1)[0]) {
-            this.groupsStack.slice(-1)[0].setLastLine(line);
-        } else if (this.lines) {
-            this.lines[this.lines.length-1] = line;
+
+class MainLines {
+    public lines: (LoopLines|Line)[];
+
+    constructor() {
+        this.lines = new Array();
+    }
+
+    public getLastLine(): (Line | undefined) {
+        if (this.lines) {
+            const lastItem = this.lines[this.lines.length-1];
+            if (lastItem instanceof LoopLines) {
+                return lastItem.getLastLine();
+            }
+            return lastItem;
         }
     }
 
-    private _addLine(line: Line) {
-        let lastLine: (Line| Line[] | undefined) = this.getLastLine();
+    public addLineValue(line: Line | LoopLines) {
+        let lastLine: (Line | undefined) = this.getLastLine();
 
-        if (lastLine) {
-
-            let lastLineNum: number;
-            if (Array.isArray(lastLine)) {
-                lastLineNum = lastLine[0].lineNum;
-            } else {
-                lastLineNum = lastLine.lineNum;
-            }
-
-            if (lastLineNum === line.lineNum) {
-                if (Array.isArray(lastLine)) {
-                    lastLine.push(line);
-                } else {
-                    lastLine = [lastLine, line];
-                }
-                this.setLastLine(lastLine);
+        if (!(line instanceof LoopLines) && lastLine) {
+            if (lastLine.onSameLine(line)) {
+                lastLine.addValue(line);
                 return;
             }
         }
-
-        this.appendLine(line);
+        this.lines.push(line);
     }
 
-    public addLine(rawLineNum: number, line: Line) {
-        line.lineNum = this.normLineNum(rawLineNum);
-        this._addLine(line);
+    public push(line: Line | LoopLines) {
+        const lastItem = this.lines[this.lines.length-1];
+        if (lastItem instanceof LoopLines) {
+            throw new Error('Should only add to LoopLines via Stack.');
+        } else {
+            this.addLineValue(line);
+        }
     }
 }
 
 
-class LineGroup {
-    /*
-        Holds lines for one run of a loop.
-    */
+class LoopLines {
     public lineNum: number;
     public tab: number;
-    public groups: (LineGroup|Line|Line[])[][];
+    public groups: MainLines[];
 
     constructor(lineNum: number, tab: number) {
         this.lineNum = lineNum;
         this.tab = tab;
         this.groups = new Array();
-        this.groups.push(new Array());
     }
 
-    public addLine(line: LineGroup | Line) {
-        this.groups[this.groups.length-1].push(line);
-    }
-
-    public startNewGroup() {
-        this.groups.push([]);
-    }
-
-    public getLastLine() : (Line | Line[] | undefined) {
-        if (this.groups && this.groups[this.groups.length-1]) {
-            const lastLine = this.groups[this.groups.length-1][this.groups.length-1];
-            if (lastLine instanceof LineGroup) {
-                return lastLine.getLastLine();   
-            }
-            return lastLine;
+    public getLastLine(): (Line | undefined) {
+        if (this.groups) {
+            return this.groups[this.groups.length-1].getLastLine();
         }
     }
 
-    public setLastLine(line: (Line|Line[])) {
-        if (this.groups && this.groups.slice(-1)[0]) {
-            this.groups[this.groups.length-1][this.groups.length-1] = line;
-        } else {
-            throw new Error('No line to set.');
-        }
+    public startNewLoop() {
+        this.groups.push(new MainLines());
+    }
+
+    public push(line: Line | LoopLines) {
+        let lastGroup = this.groups[this.groups.length-1];
+        lastGroup.push(line);
+    }
+
+    public notInLoop(lineNum: number, tab: number) {
+        return tab < this.tab || tab === this.tab && lineNum !== this.lineNum;
+    }
+
+    public isInLoop(lineNum: number, tab: number) {
+        return !this.notInLoop(lineNum, tab);
     }
 }
 
@@ -219,11 +198,19 @@ class Line {
         Represents a value line (starts with ... in snoops).
     */
     public lineNum: number;
-    public value: string;
+    public value: string[];
 
     constructor(value: string) {
         this.lineNum = -1;
-        this.value = value;
+        this.value = [value];
+    }
+
+    public onSameLine(line: Line) {
+        return line.lineNum === this.lineNum;
+    }
+
+    public addValue(line: Line) {
+        this.value.push(line.value[0]);
     }
 }
 
@@ -251,5 +238,5 @@ class ErrorReturnLine extends FunctionLink {}
 
 
 export {
-    AllFiles, File, aFunction, ExecutedFunction, LineGroup, Line, StateLine, StdOutLine, ErrorLine, FunctionLink, ErrorReturnLine
+    AllFiles, File, aFunction, ExecutedFunction, Line, LoopLines, StateLine, StdOutLine, ErrorLine, FunctionLink, ErrorReturnLine
 };
